@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Test için - bu satır çalışıyorsa CSS yükleniyor demektir */
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+}

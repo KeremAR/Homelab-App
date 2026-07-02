@@ -1,0 +1,28 @@
+# Caddyfile - Caddy web server configuration
+# Replaces nginx.conf
+
+:3000 {
+    # Security headers (apply to all responses)
+    header {
+        X-Frame-Options SAMEORIGIN
+        X-Content-Type-Options nosniff
+        X-XSS-Protection "1; mode=block"
+    }
+    
+    # Compression
+    encode gzip zstd
+    
+    # Static files and SPA routing
+    handle {
+        root * /usr/share/caddy
+        
+        # Cache static assets
+        @static path *.js *.css *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff *.woff2 *.ttf *.eot
+        header @static Cache-Control "public, max-age=31536000, immutable"
+        
+        # Try to serve file, otherwise serve index.html (SPA routing)
+        try_files {path} /index.html
+        file_server
+    }
+}
+
