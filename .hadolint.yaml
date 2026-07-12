@@ -1,0 +1,10 @@
+failure-threshold: error
+
+ignored:
+  - DL3059
+
+override:
+  warning:
+    - DL3008
+    - DL3009
+    - DL3016
