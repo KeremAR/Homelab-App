@@ -68,6 +68,17 @@ pipeline {
                 }
             }
         }
+
+        stage('Unit Tests') {
+            steps {
+                runUnitTest(
+                    targets: lintConfig.pythonTargets,
+                    requirementsFile: 'requirements.txt',
+                    coverageDir: 'coverage-reports',
+                    failFast: false
+                )
+            }
+        }
     }
 
     post {
