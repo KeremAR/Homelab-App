@@ -15,6 +15,23 @@ def lintConfig = [
     ]
 ]
 
+def unitTestServices = [
+    [
+        name: 'user-service',
+        target: 'user-service',
+        requirementsFile: 'user-service/requirements-test.txt',
+        testPath: '.',
+        coverageThreshold: 70
+    ],
+    [
+        name: 'todo-service',
+        target: 'todo-service',
+        requirementsFile: 'todo-service/requirements-test.txt',
+        testPath: '.',
+        coverageThreshold: 70
+    ]
+]
+
 pipeline {
     agent {
         kubernetes {
@@ -72,8 +89,7 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 runUnitTest(
-                    targets: lintConfig.pythonTargets,
-                    requirementsFile: 'requirements.txt',
+                    services: unitTestServices,
                     coverageDir: 'coverage-reports',
                     failFast: false
                 )
