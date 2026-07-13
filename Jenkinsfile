@@ -32,6 +32,18 @@ def unitTestServices = [
     ]
 ]
 
+def securityConfig = [
+    trivySkipDirs: [
+        'frontend/node_modules',
+        'node_modules',
+        '.venvs',
+        'venv',
+        '.git',
+        '__pycache__',
+        'coverage-reports'
+    ]
+]
+
 pipeline {
     agent {
         kubernetes {
@@ -93,6 +105,36 @@ pipeline {
                     coverageDir: 'coverage-reports',
                     failFast: false
                 )
+            }
+        }
+
+        stage('Prepare Security Scanner') {
+            steps {
+                ensureTrivyDB()
+            }
+        }
+
+        stage('Static Security Scan') {
+            parallel {
+                stage('Dependencies') {
+                    steps {
+                        runTrivyFSScan(
+                            target: '.',
+                            skipDirs: securityConfig.trivySkipDirs,
+                            failOnVulnerabilities: true
+                        )
+                    }
+                }
+
+                stage('Secrets') {
+                    steps {
+                        runTrivySecretScan(
+                            target: '.',
+                            skipDirs: securityConfig.trivySkipDirs,
+                            failOnSecrets: true
+                        )
+                    }
+                }
             }
         }
     }
