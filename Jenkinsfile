@@ -34,12 +34,12 @@ def unitTestServices = [
 
 def securityConfig = [
     trivySkipDirs: [
-        'frontend/node_modules',
-        'node_modules',
-        '.venvs',
-        'venv',
+        '**/node_modules',
+        '**/.venv',
+        '**/.venvs',
+        '**/venv',
+        '**/__pycache__',
         '.git',
-        '__pycache__',
         'coverage-reports'
     ]
 ]
@@ -121,6 +121,8 @@ pipeline {
                         runTrivyFSScan(
                             target: '.',
                             skipDirs: securityConfig.trivySkipDirs,
+                            filePatterns: ['pip:requirements-.*\\.txt'],
+                            includeDevDeps: true,
                             failOnVulnerabilities: true
                         )
                     }
