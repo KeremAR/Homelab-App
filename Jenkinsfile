@@ -135,7 +135,8 @@ pipeline {
                     sources: sonarConfig.sources,
                     coverageReports: sonarConfig.coverageReports,
                     fetchIssues: sonarConfig.fetchIssues,
-                    fetchIssuesConfig: sonarConfig.fetchIssuesConfig
+                    fetchIssuesConfig: sonarConfig.fetchIssuesConfig,
+                    container: 'sonar'
                 )
             }
         }
