@@ -61,6 +61,9 @@ def sonarConfig = [
         statuses: ['OPEN', 'CONFIRMED'],
         maxIssues: 100,
         maxIssuesToPrint: 20
+    ],
+    extraProperties: [
+        'sonar.python.version': '3.11'
     ]
 ]
 
@@ -136,6 +139,7 @@ pipeline {
                     coverageReports: sonarConfig.coverageReports,
                     fetchIssues: sonarConfig.fetchIssues,
                     fetchIssuesConfig: sonarConfig.fetchIssuesConfig,
+                    extraProperties: sonarConfig.extraProperties,
                     container: 'sonar'
                 )
             }
