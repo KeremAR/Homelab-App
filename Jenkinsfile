@@ -44,6 +44,26 @@ def securityConfig = [
     ]
 ]
 
+def sonarConfig = [
+    projectKey: 'homelab-app',
+    sources: [
+        'user-service',
+        'todo-service',
+        'frontend'
+    ],
+    coverageReports: [
+        'coverage-reports/user-service/coverage.xml',
+        'coverage-reports/todo-service/coverage.xml'
+    ],
+    fetchIssues: true,
+    fetchIssuesConfig: [
+        severities: ['BLOCKER', 'CRITICAL', 'MAJOR'],
+        statuses: ['OPEN', 'CONFIRMED'],
+        maxIssues: 100,
+        maxIssuesToPrint: 20
+    ]
+]
+
 pipeline {
     agent {
         kubernetes {
@@ -104,6 +124,18 @@ pipeline {
                     services: unitTestServices,
                     coverageDir: 'coverage-reports',
                     failFast: false
+                )
+            }
+        }
+
+        stage('Code Quality Analysis') {
+            steps {
+                runSonarQube(
+                    projectKey: sonarConfig.projectKey,
+                    sources: sonarConfig.sources,
+                    coverageReports: sonarConfig.coverageReports,
+                    fetchIssues: sonarConfig.fetchIssues,
+                    fetchIssuesConfig: sonarConfig.fetchIssuesConfig
                 )
             }
         }
