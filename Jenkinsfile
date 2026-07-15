@@ -60,7 +60,7 @@ def sonarConfig = [
         severities: ['BLOCKER', 'CRITICAL', 'MAJOR'],
         statuses: ['OPEN', 'CONFIRMED'],
         maxIssues: 100,
-        maxIssuesToPrint: 20
+        maxIssuesToPrint: 100
     ],
     extraProperties: [
         'sonar.python.version': '3.11'
