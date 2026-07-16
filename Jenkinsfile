@@ -137,7 +137,7 @@ pipeline {
                     String branchName = env.BRANCH_NAME ?: ''
                     boolean projectLevelIssues = branchName.startsWith('release/')
                     boolean newCodeIssues = !projectLevelIssues
-                    Map issueFetchConfig = new LinkedHashMap(sonarConfig.fetchIssuesConfig)
+                    Map issueFetchConfig = sonarConfig.fetchIssuesConfig + [:]
 
                     if (newCodeIssues) {
                         issueFetchConfig.inNewCodePeriod = true
