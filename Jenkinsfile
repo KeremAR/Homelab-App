@@ -133,15 +133,30 @@ pipeline {
 
         stage('Code Quality Analysis') {
             steps {
-                runSonarQube(
-                    projectKey: sonarConfig.projectKey,
-                    sources: sonarConfig.sources,
-                    coverageReports: sonarConfig.coverageReports,
-                    fetchIssues: sonarConfig.fetchIssues,
-                    fetchIssuesConfig: sonarConfig.fetchIssuesConfig,
-                    extraProperties: sonarConfig.extraProperties,
-                    container: 'sonar'
-                )
+                script {
+                    String branchName = env.BRANCH_NAME ?: ''
+                    boolean projectLevelIssues = branchName.startsWith('release/')
+                    boolean newCodeIssues = !projectLevelIssues
+                    Map issueFetchConfig = new LinkedHashMap(sonarConfig.fetchIssuesConfig)
+
+                    if (newCodeIssues) {
+                        issueFetchConfig.inNewCodePeriod = true
+                        echo "SonarQube issue fetch policy: new-code issues (${branchName ?: 'unknown branch'})"
+                    } else {
+                        echo "SonarQube issue fetch policy: release branch project-level issues (${branchName})"
+                    }
+
+                    runSonarQube(
+                        projectKey: sonarConfig.projectKey,
+                        sources: sonarConfig.sources,
+                        coverageReports: sonarConfig.coverageReports,
+                        fetchIssues: sonarConfig.fetchIssues,
+                        fetchIssuesConfig: issueFetchConfig,
+                        extraProperties: sonarConfig.extraProperties,
+                        inNewCodePeriod: newCodeIssues,
+                        container: 'sonar'
+                    )
+                }
             }
         }
 
