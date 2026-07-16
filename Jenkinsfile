@@ -135,7 +135,7 @@ pipeline {
             steps {
                 script {
                     String branchName = env.BRANCH_NAME ?: ''
-                    boolean projectLevelIssues = branchName.startsWith('feature/')
+                    boolean projectLevelIssues = branchName.startsWith('release/')
                     boolean newCodeIssues = !projectLevelIssues
                     Map issueFetchConfig = sonarConfig.fetchIssuesConfig + [:]
 
