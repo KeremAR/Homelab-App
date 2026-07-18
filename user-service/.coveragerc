@@ -1,0 +1,10 @@
+[run]
+relative_files = true
+
+[report]
+show_missing = true
+omit =
+    test_*.py
+    */test_*.py
+    tests/*
+    */tests/*
