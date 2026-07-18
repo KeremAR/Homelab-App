@@ -72,7 +72,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Security
+# Securityy
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
 USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://user-service:8001")
