@@ -7,7 +7,7 @@ import psycopg2.extras  # Import extras explicitly for RealDictCursor
 # httpx removed - not used
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from jose import JWTError, jwt  
+from jose import JWTError, jwt
 
 # OpenTelemetry SDK and Instrumentation
 from opentelemetry import trace
