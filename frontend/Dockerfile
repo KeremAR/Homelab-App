@@ -1,13 +1,13 @@
 # Stage 1: Build the application
-FROM node:20-alpine AS builder
+FROM node:20.20.2-alpine AS builder
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-# Install all dependencies (including devDependencies)
-RUN npm install
+# Install locked dependencies (including devDependencies)
+RUN npm ci --no-audit --no-fund
 
 # Copy source code
 COPY . .
