@@ -67,6 +67,28 @@ def sonarConfig = [
     ]
 ]
 
+def imageBuildConfig = [
+    outputDir: 'image-artifacts',
+    platform: 'linux/amd64',
+    images: [
+        [
+            name: 'user-service',
+            context: 'user-service',
+            dockerfile: 'user-service/Dockerfile'
+        ],
+        [
+            name: 'todo-service',
+            context: 'todo-service',
+            dockerfile: 'todo-service/Dockerfile'
+        ],
+        [
+            name: 'frontend',
+            context: 'frontend',
+            dockerfile: 'frontend/Dockerfile'
+        ]
+    ]
+]
+
 pipeline {
     agent {
         kubernetes {
@@ -76,6 +98,10 @@ pipeline {
     }
 
     options {
+        buildDiscarder(logRotator(
+            numToKeepStr: '10',
+            artifactNumToKeepStr: '1'
+        ))
         skipDefaultCheckout(true)
         timestamps()
         disableConcurrentBuilds()
@@ -188,6 +214,35 @@ pipeline {
                             failOnSecrets: true
                         )
                     }
+                }
+            }
+        }
+
+        stage('Build Images') {
+            when {
+                expression { (env.BRANCH_NAME ?: '').startsWith('release/') }
+            }
+            steps {
+                script {
+                    String shortCommit = sh(
+                        label: 'Resolve short commit',
+                        returnStdout: true,
+                        script: 'git rev-parse --short=7 HEAD'
+                    ).trim()
+                    String releaseName = (env.BRANCH_NAME ?: 'release/local')
+                        .replaceFirst(/^release\//, '')
+                        .replaceAll(/[^A-Za-z0-9_.-]/, '-')
+                    String imageTag = "${shortCommit}-${releaseName}-candidate"
+                    List images = imageBuildConfig.images.collect { image ->
+                        image + [tag: imageTag]
+                    }
+
+                    runBuildImages(
+                        images: images,
+                        outputDir: imageBuildConfig.outputDir,
+                        platform: imageBuildConfig.platform,
+                        failFast: false
+                    )
                 }
             }
         }
