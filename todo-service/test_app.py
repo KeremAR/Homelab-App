@@ -1,9 +1,12 @@
+import json
 from unittest.mock import MagicMock, patch
 
+import app as app_module
 import pytest
 from app import ALGORITHM, SECRET_KEY, app
 from fastapi.testclient import TestClient
 from jose import jwt
+from pydantic import ValidationError
 
 
 @pytest.fixture
@@ -74,6 +77,45 @@ class TestHealthCheck:
             assert data["detail"]["status"] == "not_ready"
             assert data["detail"]["database"] == "disconnected"
             assert "Database connection failed" in data["detail"]["error"]
+
+
+class TestRuntimeConfig:
+    def test_loads_valid_config_and_exposes_it(self, client, tmp_path, monkeypatch):
+        config_path = tmp_path / "runtime-config.json"
+        config_path.write_text(
+            json.dumps({"message": "Hot reload is active", "version": 2}),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(app_module, "RUNTIME_CONFIG_PATH", config_path)
+        monkeypatch.setattr(
+            app_module,
+            "_runtime_config",
+            app_module.RuntimeConfig(message="Old value", version=1),
+        )
+
+        loaded_config = app_module.load_runtime_config()
+        response = client.get("/config")
+
+        assert loaded_config.version == 2
+        assert response.status_code == 200
+        assert response.json() == {
+            "message": "Hot reload is active",
+            "version": 2,
+        }
+
+    def test_invalid_config_keeps_previous_value(self, tmp_path, monkeypatch):
+        config_path = tmp_path / "runtime-config.json"
+        config_path.write_text(
+            json.dumps({"message": "", "version": 0}), encoding="utf-8"
+        )
+        old_config = app_module.RuntimeConfig(message="Still active", version=1)
+        monkeypatch.setattr(app_module, "RUNTIME_CONFIG_PATH", config_path)
+        monkeypatch.setattr(app_module, "_runtime_config", old_config)
+
+        with pytest.raises(ValidationError):
+            app_module.load_runtime_config()
+
+        assert app_module.get_runtime_config() == old_config
 
 
 class TestTodoCreation:
