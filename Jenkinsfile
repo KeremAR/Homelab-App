@@ -100,7 +100,8 @@ pipeline {
     options {
         buildDiscarder(logRotator(
             numToKeepStr: '10',
-            artifactNumToKeepStr: '1'
+            artifactNumToKeepStr: '1',
+            artifactDaysToKeepStr: '1'
         ))
         skipDefaultCheckout(true)
         timestamps()
@@ -223,27 +224,13 @@ pipeline {
                 expression { (env.BRANCH_NAME ?: '').startsWith('release/') }
             }
             steps {
-                script {
-                    String shortCommit = sh(
-                        label: 'Resolve short commit',
-                        returnStdout: true,
-                        script: 'git rev-parse --short=7 HEAD'
-                    ).trim()
-                    String releaseName = (env.BRANCH_NAME ?: 'release/local')
-                        .replaceFirst(/^release\//, '')
-                        .replaceAll(/[^A-Za-z0-9_.-]/, '-')
-                    String imageTag = "${shortCommit}-${releaseName}-candidate"
-                    List images = imageBuildConfig.images.collect { image ->
-                        image + [tag: imageTag]
-                    }
-
-                    runBuildImages(
-                        images: images,
-                        outputDir: imageBuildConfig.outputDir,
-                        platform: imageBuildConfig.platform,
-                        failFast: false
-                    )
-                }
+                runReleaseImages(
+                    images: imageBuildConfig.images,
+                    outputDir: imageBuildConfig.outputDir,
+                    platform: imageBuildConfig.platform,
+                    environment: 'staging',
+                    failFast: false
+                )
             }
         }
     }
