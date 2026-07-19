@@ -1,11 +1,15 @@
+import json
+import logging
 import os
+from pathlib import Path
+from threading import Lock
 from typing import List, Optional
 
 import psycopg2
 import psycopg2.extras  # Import extras explicitly for RealDictCursor
 
 # httpx removed - not used
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from jose import JWTError, jwt
 
@@ -18,7 +22,9 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from prometheus_fastapi_instrumentator import Instrumentator, metrics
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ValidationError
+
+logger = logging.getLogger(__name__)
 
 # Configure OpenTelemetry SDK
 resource = Resource.create(
@@ -76,12 +82,44 @@ app.add_middleware(
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
 USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://user-service:8001")
+RUNTIME_CONFIG_PATH = Path(
+    os.getenv(
+        "RUNTIME_CONFIG_PATH", "/etc/todo-service/runtime-config/runtime-config.json"
+    )
+)
 
 # SQL Queries
 SQL_GET_TODO_BY_ID_AND_USER = "SELECT * FROM todos WHERE id = %s AND user_id = %s"
 
 # Error messages
 ERROR_TODO_NOT_FOUND = "Todo not found"
+
+
+class RuntimeConfig(BaseModel):
+    message: str = Field(min_length=1, max_length=200)
+    version: int = Field(ge=1)
+
+
+_runtime_config = RuntimeConfig(
+    message="Todo service is using its built-in configuration.", version=1
+)
+_runtime_config_lock = Lock()
+
+
+def load_runtime_config() -> RuntimeConfig:
+    """Validate the file first, then atomically replace the active config."""
+    new_config = RuntimeConfig.model_validate_json(
+        RUNTIME_CONFIG_PATH.read_text(encoding="utf-8")
+    )
+    global _runtime_config
+    with _runtime_config_lock:
+        _runtime_config = new_config
+    return new_config
+
+
+def get_runtime_config() -> RuntimeConfig:
+    with _runtime_config_lock:
+        return _runtime_config.model_copy()
 
 
 class TodoCreate(BaseModel):
@@ -152,6 +190,13 @@ async def verify_token(authorization: str = Header(None)):
 
 @app.on_event("startup")
 async def startup_event():  # pragma: no cover
+    if RUNTIME_CONFIG_PATH.is_file():
+        try:
+            loaded_config = load_runtime_config()
+            logger.info("Runtime config version %s loaded", loaded_config.version)
+        except (OSError, ValidationError, json.JSONDecodeError):
+            logger.exception("Runtime config could not be loaded; keeping old config")
+
     try:
         init_db()
     except Exception:
@@ -163,6 +208,37 @@ async def startup_event():  # pragma: no cover
 async def health_check():
     """Liveness probe - checks if application is running"""
     return {"status": "healthy", "service": "todo-service"}
+
+
+@app.get("/config", response_model=RuntimeConfig)
+async def read_runtime_config():
+    """Public demo endpoint for observing the active in-memory configuration."""
+    return get_runtime_config()
+
+
+@app.post("/admin/reload-config", response_model=RuntimeConfig)
+async def reload_runtime_config(request: Request):
+    """Reload runtime config; only the sidecar on this pod may call this endpoint."""
+    client_host = request.client.host if request.client else None
+    if client_host not in {"127.0.0.1", "::1"}:
+        raise HTTPException(
+            status_code=403, detail="Reload is only allowed from localhost"
+        )
+
+    try:
+        loaded_config = load_runtime_config()
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=503, detail="Runtime config file not found"
+        ) from exc
+    except (OSError, ValidationError, json.JSONDecodeError) as exc:
+        logger.exception("Runtime config reload failed; keeping old config")
+        raise HTTPException(
+            status_code=422, detail="Runtime config is invalid"
+        ) from exc
+
+    logger.info("Runtime config version %s reloaded", loaded_config.version)
+    return loaded_config
 
 
 @app.get("/ready")
