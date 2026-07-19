@@ -92,7 +92,7 @@ def imageBuildConfig = [
 pipeline {
     agent {
         kubernetes {
-            yaml ciLintPodTemplate()
+            yaml ciLintPodTemplate(images: imageBuildConfig.images)
             defaultContainer 'jnlp'
         }
     }
