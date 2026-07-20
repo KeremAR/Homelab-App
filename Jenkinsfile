@@ -58,6 +58,7 @@ def imageSecurityConfig = [
 
 def sonarConfig = [
     projectKey: 'homelab-app',
+    abortPipeline: false,
     sources: [
         'user-service',
         'todo-service',
