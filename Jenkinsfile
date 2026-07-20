@@ -194,7 +194,7 @@ pipeline {
                         fetchIssuesConfig: issueFetchConfig,
                         extraProperties: sonarConfig.extraProperties,
                         inNewCodePeriod: newCodeIssues,
-                        container: 'sonar'
+                        container: 'sonar',
                         abortPipeline: sonarConfig.abortPipeline
 
                     )
