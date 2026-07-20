@@ -44,6 +44,18 @@ def securityConfig = [
     ]
 ]
 
+def imageSecurityConfig = [
+    severities: 'HIGH,CRITICAL',
+    failOnVulnerabilities: true,
+    imageReportDir: 'trivy-image-reports',
+    sbomOutputDir: 'sbom-reports',
+    sbomFormat: 'cyclonedx',
+    dependencyTrackEnabled: false,
+    dependencyTrackUrl: 'http://dtrack-dependency-track-api-server.dependency-track.svc.cluster.local:8080',
+    dependencyTrackCredentialsId: 'dependency-track-api-key',
+    dependencyTrackAutoCreate: true
+]
+
 def sonarConfig = [
     projectKey: 'homelab-app',
     sources: [
@@ -106,7 +118,7 @@ pipeline {
         skipDefaultCheckout(true)
         timestamps()
         disableConcurrentBuilds()
-        timeout(time: 20, unit: 'MINUTES')
+        timeout(time: 30, unit: 'MINUTES')
     }
 
     stages {
@@ -229,6 +241,39 @@ pipeline {
                     outputDir: imageBuildConfig.outputDir,
                     platform: imageBuildConfig.platform,
                     environment: 'staging',
+                    failFast: false
+                )
+            }
+        }
+
+        stage('Image Security Scan') {
+            when {
+                expression { (env.BRANCH_NAME ?: '').startsWith('release/') }
+            }
+            steps {
+                runTrivyScan(
+                    imageManifest: "${imageBuildConfig.outputDir}/images.txt",
+                    outputDir: imageSecurityConfig.imageReportDir,
+                    severities: imageSecurityConfig.severities,
+                    failOnVulnerabilities: imageSecurityConfig.failOnVulnerabilities,
+                    failFast: false
+                )
+            }
+        }
+
+        stage('Generate Image SBOM') {
+            when {
+                expression { (env.BRANCH_NAME ?: '').startsWith('release/') }
+            }
+            steps {
+                runTrivySBOM(
+                    imageManifest: "${imageBuildConfig.outputDir}/images.txt",
+                    outputDir: imageSecurityConfig.sbomOutputDir,
+                    format: imageSecurityConfig.sbomFormat,
+                    uploadToDependencyTrack: imageSecurityConfig.dependencyTrackEnabled,
+                    dependencyTrackUrl: imageSecurityConfig.dependencyTrackUrl,
+                    dependencyTrackCredentialsId: imageSecurityConfig.dependencyTrackCredentialsId,
+                    dependencyTrackAutoCreate: imageSecurityConfig.dependencyTrackAutoCreate,
                     failFast: false
                 )
             }
