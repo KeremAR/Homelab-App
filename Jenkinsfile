@@ -195,6 +195,8 @@ pipeline {
                         extraProperties: sonarConfig.extraProperties,
                         inNewCodePeriod: newCodeIssues,
                         container: 'sonar'
+                        abortPipeline: sonarConfig.abortPipeline
+
                     )
                 }
             }
