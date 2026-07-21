@@ -249,6 +249,25 @@ pipeline {
             }
         }
 
+        stage('Generate Image SBOM') {
+            when {
+                expression { (env.BRANCH_NAME ?: '').startsWith('release/') }
+            }
+            steps {
+                runTrivySBOM(
+                    imageManifest: "${imageBuildConfig.outputDir}/images.txt",
+                    outputDir: imageSecurityConfig.sbomOutputDir,
+                    format: imageSecurityConfig.sbomFormat,
+                    skipDirs: securityConfig.trivySkipDirs,
+                    uploadToDependencyTrack: imageSecurityConfig.dependencyTrackEnabled,
+                    dependencyTrackUrl: imageSecurityConfig.dependencyTrackUrl,
+                    dependencyTrackCredentialsId: imageSecurityConfig.dependencyTrackCredentialsId,
+                    dependencyTrackAutoCreate: imageSecurityConfig.dependencyTrackAutoCreate,
+                    failFast: false
+                )
+            }
+        }
+
         stage('Image Security Scan') {
             when {
                 expression { (env.BRANCH_NAME ?: '').startsWith('release/') }
@@ -259,24 +278,7 @@ pipeline {
                     outputDir: imageSecurityConfig.imageReportDir,
                     severities: imageSecurityConfig.severities,
                     failOnVulnerabilities: imageSecurityConfig.failOnVulnerabilities,
-                    failFast: false
-                )
-            }
-        }
-
-        stage('Generate Image SBOM') {
-            when {
-                expression { (env.BRANCH_NAME ?: '').startsWith('release/') }
-            }
-            steps {
-                runTrivySBOM(
-                    imageManifest: "${imageBuildConfig.outputDir}/images.txt",
-                    outputDir: imageSecurityConfig.sbomOutputDir,
-                    format: imageSecurityConfig.sbomFormat,
-                    uploadToDependencyTrack: imageSecurityConfig.dependencyTrackEnabled,
-                    dependencyTrackUrl: imageSecurityConfig.dependencyTrackUrl,
-                    dependencyTrackCredentialsId: imageSecurityConfig.dependencyTrackCredentialsId,
-                    dependencyTrackAutoCreate: imageSecurityConfig.dependencyTrackAutoCreate,
+                    skipDirs: securityConfig.trivySkipDirs,
                     failFast: false
                 )
             }
