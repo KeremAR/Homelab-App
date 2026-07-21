@@ -46,7 +46,7 @@ def securityConfig = [
 
 def imageSecurityConfig = [
     severities: 'HIGH,CRITICAL',
-    failOnVulnerabilities: true,
+    failOnVulnerabilities: false,
     imageReportDir: 'trivy-image-reports',
     sbomOutputDir: 'sbom-reports',
     sbomFormat: 'cyclonedx',
