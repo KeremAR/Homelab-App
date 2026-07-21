@@ -33,15 +33,17 @@ def unitTestServices = [
 ]
 
 def securityConfig = [
-    trivySkipDirs: [
-        '**/node_modules',
-        '**/.venv',
-        '**/.venvs',
-        '**/venv',
-        '**/__pycache__',
+    trivyFsSkipDirs: [
+        'frontend/node_modules',
+        'node_modules',
+        '.venvs',
+        '.venv',
+        'venv',
+        '__pycache__',
         '.git',
         'coverage-reports'
-    ]
+    ],
+    trivyImageSkipDirs: []
 ]
 
 def imageSecurityConfig = [
@@ -214,7 +216,7 @@ pipeline {
                     steps {
                         runTrivyFSScan(
                             target: '.',
-                            skipDirs: securityConfig.trivySkipDirs,
+                            skipDirs: securityConfig.trivyFsSkipDirs,
                             filePatterns: ['pip:requirements-.*\\.txt'],
                             includeDevDeps: true,
                             failOnVulnerabilities: true
@@ -226,7 +228,7 @@ pipeline {
                     steps {
                         runTrivySecretScan(
                             target: '.',
-                            skipDirs: securityConfig.trivySkipDirs,
+                            skipDirs: securityConfig.trivyFsSkipDirs,
                             failOnSecrets: true
                         )
                     }
@@ -258,7 +260,6 @@ pipeline {
                     imageManifest: "${imageBuildConfig.outputDir}/images.txt",
                     outputDir: imageSecurityConfig.sbomOutputDir,
                     format: imageSecurityConfig.sbomFormat,
-                    skipDirs: securityConfig.trivySkipDirs,
                     uploadToDependencyTrack: imageSecurityConfig.dependencyTrackEnabled,
                     dependencyTrackUrl: imageSecurityConfig.dependencyTrackUrl,
                     dependencyTrackCredentialsId: imageSecurityConfig.dependencyTrackCredentialsId,
@@ -278,7 +279,7 @@ pipeline {
                     outputDir: imageSecurityConfig.imageReportDir,
                     severities: imageSecurityConfig.severities,
                     failOnVulnerabilities: imageSecurityConfig.failOnVulnerabilities,
-                    skipDirs: securityConfig.trivySkipDirs,
+                    skipDirs: securityConfig.trivyImageSkipDirs,
                     failFast: false
                 )
             }
