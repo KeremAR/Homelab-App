@@ -52,10 +52,12 @@ def imageSecurityConfig = [
     imageReportDir: 'trivy-image-reports',
     sbomOutputDir: 'sbom-reports',
     sbomFormat: 'cyclonedx',
+    sbomContainer: 'trivy',
+    cycloneDxContainer: 'cyclonedx',
+    cycloneDxSpecVersion: 'v1_6',
     dependencyTrackEnabled: true,
     dependencyTrackUrl: 'http://dtrack-dependency-track-api-server.dependency-track.svc.cluster.local:8080',
-    dependencyTrackCredentialsId: 'dependency-track-api-key',
-    dependencyTrackAutoCreate: true
+    dependencyTrackCredentialsId: 'dependency-track-api-key'
 ]
 
 def sonarConfig = [
@@ -260,10 +262,12 @@ pipeline {
                     imageManifest: "${imageBuildConfig.outputDir}/images.txt",
                     outputDir: imageSecurityConfig.sbomOutputDir,
                     format: imageSecurityConfig.sbomFormat,
+                    container: imageSecurityConfig.sbomContainer,
+                    cycloneDxContainer: imageSecurityConfig.cycloneDxContainer,
+                    cycloneDxSpecVersion: imageSecurityConfig.cycloneDxSpecVersion,
                     uploadToDependencyTrack: imageSecurityConfig.dependencyTrackEnabled,
                     dependencyTrackUrl: imageSecurityConfig.dependencyTrackUrl,
                     dependencyTrackCredentialsId: imageSecurityConfig.dependencyTrackCredentialsId,
-                    dependencyTrackAutoCreate: imageSecurityConfig.dependencyTrackAutoCreate,
                     failFast: false
                 )
             }
