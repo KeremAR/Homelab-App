@@ -52,7 +52,7 @@ def imageSecurityConfig = [
     imageReportDir: 'trivy-image-reports',
     sbomOutputDir: 'sbom-reports',
     sbomFormat: 'cyclonedx',
-    dependencyTrackEnabled: true,
+    dependencyTrackEnabled: false,
     dependencyTrackUrl: 'http://dtrack-dependency-track-api-server.dependency-track.svc.cluster.local:8080',
     dependencyTrackCredentialsId: 'dependency-track-api-key'
 ]
