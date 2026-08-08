@@ -13,6 +13,10 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
+  "overrides": {
+    "brace-expansion": "1.1.18",
+    "js-yaml": "4.3.1"
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@types/react": "^19.1.10",
