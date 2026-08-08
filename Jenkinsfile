@@ -282,6 +282,17 @@ pipeline {
                 )
             }
         }
+
+        stage('Mark Release CI Artifact') {
+            when {
+                expression { (env.BRANCH_NAME ?: '').startsWith('release/') }
+            }
+            steps {
+                markReleaseCiArtifact(
+                    outputDir: imageBuildConfig.outputDir
+                )
+            }
+        }
     }
 
     post {
