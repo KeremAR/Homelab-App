@@ -1,0 +1,88 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Dev: User service",
+      "type": "shell",
+      "command": ".venv/bin/uvicorn app:app --host 0.0.0.0 --port 8001 --reload",
+      "options": {
+        "cwd": "${workspaceFolder}/user-service",
+        "env": {
+          "DATABASE_URL": "postgresql://userservice:userpass@user-db:5432/userdb",
+          "SECRET_KEY": "dev-secret-key-change-before-production",
+          "OTEL_SERVICE_NAME": "user-service"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "group": "development",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Dev: Todo service",
+      "type": "shell",
+      "command": ".venv/bin/uvicorn app:app --host 0.0.0.0 --port 8002 --reload",
+      "options": {
+        "cwd": "${workspaceFolder}/todo-service",
+        "env": {
+          "DATABASE_URL": "postgresql://todoservice:todopass@todo-db:5432/tododb",
+          "SECRET_KEY": "dev-secret-key-change-before-production",
+          "USER_SERVICE_URL": "http://localhost:8001",
+          "OTEL_SERVICE_NAME": "todo-service"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "group": "development",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Dev: Frontend",
+      "type": "shell",
+      "command": "npm run dev -- --host 0.0.0.0",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "group": "development",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Dev: Start all",
+      "dependsOn": [
+        "Dev: User service",
+        "Dev: Todo service",
+        "Dev: Frontend"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: Python services",
+      "type": "shell",
+      "command": "user-service/.venv/bin/pytest user-service && todo-service/.venv/bin/pytest todo-service",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint: All",
+      "type": "shell",
+      "command": "user-service/.venv/bin/black --check --diff user-service todo-service && user-service/.venv/bin/flake8 user-service todo-service && npm --prefix frontend run lint",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}
