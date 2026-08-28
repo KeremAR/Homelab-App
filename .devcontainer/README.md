@@ -174,6 +174,88 @@ directory. These add Dev Container Features, identifying labels, the VS Code
 server setup, and container lifecycle details on top of the repository's
 `compose.yaml`; they do not replace the repository configuration.
 
+### Local VS Code And Remote Execution Context
+
+The VS Code window remains a Windows application, but the Dev Containers
+extension installs and connects to a VS Code Server inside the `workspace`
+container. After that connection, the container becomes the remote execution
+context for the opened window:
+
+```text
+VS Code user interface on Windows
+        |
+        | remote connection
+        v
+VS Code Server in the workspace container
+        |
+        +--> integrated terminals run here
+        +--> shell tasks run here
+        +--> container-side extensions run here
+        +--> /workspace is the opened project folder
+```
+
+This remote connection is the reason commands from `.vscode/tasks.json` run in
+the container. The `${workspaceFolder}` variable does not select the execution
+machine. It only resolves to the folder opened in the current VS Code context.
+Because `devcontainer.json` declares:
+
+```json
+"workspaceFolder": "/workspace"
+```
+
+a task value such as:
+
+```json
+"cwd": "${workspaceFolder}/user-service"
+```
+
+resolves to `/workspace/user-service` inside the container. If the same
+repository were opened locally instead of through the Dev Container, VS Code
+would execute the task in the local context and `${workspaceFolder}` would be
+the Windows repository path.
+
+### Development Topology Versus Integration Tests
+
+The current topology deliberately runs User Service, Todo Service, and Vite as
+ordinary Linux processes in one `workspace` container. This gives the editor,
+terminals, linters, test runners, and all application source one convenient
+execution environment. The two PostgreSQL databases remain separate Compose
+containers.
+
+Integration testing does not automatically require one container per
+application service. The appropriate topology depends on the boundary being
+tested:
+
+- A test that checks whether a service can read and write PostgreSQL can use
+  the current workspace process plus its database container.
+- A test that checks communication between independently deployed services is
+  better served by separate application containers.
+- A test of the built Docker images should start those images, not the editable
+  workspace processes.
+
+Separate service containers are useful for the latter cases because they test
+additional runtime contracts:
+
+- each service has only the files and dependencies included in its own image;
+- environment variables are passed to the correct service;
+- services communicate through Compose DNS names and container ports instead
+  of sharing `localhost`;
+- startup order and health checks operate across real container boundaries;
+- the complete environment can be created cleanly and removed after the test.
+
+For example, a future integration environment could use:
+
+```text
+frontend container
+        |
+user-service container <--> user-db container
+        |
+todo-service container <--> todo-db container
+```
+
+That would be an additional test topology, not a replacement required for the
+current daily-development Dev Container.
+
 ## What Runs And When
 
 Several independent VS Code and Docker mechanisms participate in this setup.
