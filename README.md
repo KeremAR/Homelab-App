@@ -111,6 +111,21 @@ different paths, so a browser route can never be mistaken for an API route.
 | GET | /health | Liveness response | None |
 | GET | /ready | Check database connectivity | None |
 
+### API response boundary and validation
+
+Unknown `/api/*` paths must return an API error, not the frontend's
+`index.html`. Vite sends the `/api/v1` fallback to a backend during local
+development, while Caddy returns `404` for API paths that reach the frontend
+container. The centralized API client also requires a JSON response, so an
+HTML `200` response cannot be mistaken for a successful API call or a login
+token response.
+
+The todo service validates titles at the API boundary. A title must contain
+non-whitespace text and be at most 255 characters. `PATCH` rejects an explicit
+`null` or blank title, while omitted fields remain unchanged. Invalid payloads
+return FastAPI's standard `422` validation response instead of reaching SQL
+and producing a database error.
+
 ## Registration Flow
 
 1. The user opens /register and submits username, email and password.
@@ -348,4 +363,3 @@ visible here rather than hidden by the pipeline:
 The initial admin endpoint also returns the generated default password for
 setup convenience. That behavior should be removed or replaced with a secure
 one-time administration flow before production use.
-

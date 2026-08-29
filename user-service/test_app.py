@@ -169,6 +169,18 @@ class TestCurrentUser:
             "email": "test@example.com",
         }
 
+    @patch("app.get_db")
+    def test_current_user_missing_from_database_returns_401(
+        self, mock_get_db, client, mock_db, auth_headers
+    ):
+        mock_get_db.return_value = mock_db.conn
+        mock_db.cursor.fetchone.return_value = None
+
+        response = client.get("/api/v1/auth/me", headers=auth_headers)
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid session"
+
 
 class TestGetUser:
     @patch("app.get_db")

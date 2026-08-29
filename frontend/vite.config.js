@@ -24,6 +24,10 @@ export default defineConfig({
       '/api/v1/admin/todos': todoServiceProxy,
       '/api/v1/admin/reload-config': todoServiceProxy,
       '/api/v1/config': todoServiceProxy,
+      // Keep unknown API paths away from Vite's index.html fallback. The
+      // user service returns a JSON 404 for paths without a more specific
+      // backend mapping above.
+      '/api/v1': userServiceProxy,
     },
   },
 })

@@ -17,6 +17,9 @@ export function getStoredToken() {
 }
 
 export function storeToken(token) {
+  if (typeof token !== 'string' || !token.trim()) {
+    throw new Error('Cannot store an empty access token.')
+  }
   localStorage.setItem('token', token)
 }
 
@@ -77,6 +80,11 @@ async function readResponseBody(response) {
   }
 }
 
+function hasJsonContentType(response) {
+  const contentType = (response.headers?.get?.('content-type') || '').toLowerCase()
+  return contentType.includes('application/json') || contentType.includes('+json')
+}
+
 export async function apiRequest(path, options = {}) {
   const { token, body, headers: customHeaders = {}, ...fetchOptions } = options
   const activeToken = token ?? getStoredToken()
@@ -103,6 +111,13 @@ export async function apiRequest(path, options = {}) {
   if (response.status === 401) {
     clearStoredToken()
     unauthorizedHandler?.()
+  }
+
+  if (response.status !== 204 && !hasJsonContentType(response)) {
+    throw new ApiError('API returned a non-JSON response', {
+      status: response.status,
+      body: responseBody,
+    })
   }
 
   if (!response.ok) {

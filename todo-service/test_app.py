@@ -158,6 +158,16 @@ class TestTodoCreation:
 
         assert response.status_code == 401
 
+    @pytest.mark.parametrize("title", ["", "   ", "x" * 256])
+    def test_create_todo_rejects_invalid_title(self, client, auth_headers, title):
+        response = client.post(
+            "/api/v1/todos",
+            json={"title": title},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 422
+
 
 class TestTodoRetrieval:
     @patch("app.get_db")
@@ -276,6 +286,15 @@ class TestTodoUpdate:
         response = client.patch("/api/v1/todos/999", json=update_data, headers=auth_headers)
 
         assert response.status_code == 404
+
+    def test_update_todo_rejects_null_title(self, client, auth_headers):
+        response = client.patch(
+            "/api/v1/todos/1",
+            json={"title": None},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 422
 
 
 class TestTodoDelete:

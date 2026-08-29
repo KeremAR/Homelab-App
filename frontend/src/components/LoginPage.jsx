@@ -15,13 +15,27 @@ export default function LoginPage({ mode = 'login' }) {
   const registrationMessage = location.state?.message
 
   const mutation = useMutation({
-    mutationFn: () =>
-      apiRequest(isLogin ? '/auth/login' : '/auth/register', {
+    mutationFn: async () => {
+      const data = await apiRequest(isLogin ? '/auth/login' : '/auth/register', {
         method: 'POST',
         body: isLogin
           ? { username: form.username, password: form.password }
           : form,
-      }),
+      })
+
+      if (
+        isLogin &&
+        (!data ||
+          typeof data.access_token !== 'string' ||
+          !data.access_token.trim() ||
+          typeof data.token_type !== 'string' ||
+          data.token_type.toLowerCase() !== 'bearer')
+      ) {
+        throw new Error('Login response did not contain a valid access token.')
+      }
+
+      return data
+    },
     onSuccess: (data) => {
       if (isLogin) {
         signIn(data.access_token)

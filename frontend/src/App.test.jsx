@@ -8,6 +8,7 @@ function jsonResponse(body, status = 200) {
   return {
     ok: status >= 200 && status < 300,
     status,
+    headers: { get: () => 'application/json' },
     text: async () => JSON.stringify(body),
   }
 }

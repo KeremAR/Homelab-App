@@ -22,7 +22,13 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from prometheus_fastapi_instrumentator import Instrumentator, metrics
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -123,14 +129,30 @@ def get_runtime_config() -> RuntimeConfig:
 
 
 class TodoCreate(BaseModel):
-    title: str
+    title: str = Field(min_length=1, max_length=255)
     description: Optional[str] = None
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("title must not be blank")
+        return value
 
 
 class TodoUpdate(BaseModel):
-    title: Optional[str] = None
+    title: Optional[str] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = None
     completed: Optional[bool] = None
+
+    @model_validator(mode="after")
+    def validate_explicit_title(self):
+        if "title" in self.model_fields_set:
+            if self.title is None or not self.title.strip():
+                raise ValueError("title must not be blank")
+            self.title = self.title.strip()
+        return self
 
 
 class Todo(BaseModel):
