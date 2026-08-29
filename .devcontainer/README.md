@@ -1,23 +1,13 @@
 # Development Environment
 
-This directory defines a reproducible VS Code Dev Container for the complete
-application. The source code remains in the Windows repository, while the
-development tools, installed dependencies, and local PostgreSQL databases run
-in Docker.
+Reproducible VS Code Dev Container for Homelab App: two Python services, a
+Vite frontend, and two local PostgreSQL databases. Source code remains in the
+Windows repository; development tools, dependencies, and databases run in
+Docker.
 
-The environment has two separate lifecycles:
+## Quick Start
 
-1. The **development environment** starts the workspace container and the two
-   PostgreSQL containers.
-2. The **application processes** start Uvicorn for both Python services and
-   Vite for the frontend.
-
-Opening or creating the Dev Container completes only the first lifecycle. It
-does not automatically run the application. This separation keeps the
-workspace available for tests, linting, migrations, and shell work without
-always consuming ports for three development servers.
-
-## First Start
+### First Creation
 
 1. Start Docker Desktop.
 2. Install the **Dev Containers** extension in VS Code.
@@ -27,131 +17,151 @@ always consuming ports for three development servers.
    C:\Users\kerem\Documents\infrastructure\App
    ```
 
-4. Open the command palette with `Ctrl+Shift+P`.
-5. Run **Dev Containers: Reopen in Container**.
-6. Wait until VS Code finishes creating the environment and the terminal shows:
+4. Press `Ctrl+Shift+P` and select **Dev Containers: Reopen in Container**.
+5. Wait for the initial build and dependency installation to finish:
 
    ```text
    Development dependencies are ready. Run the 'Dev: Start all' VS Code task.
    ```
 
-7. Open the command palette again and run **Tasks: Run Task** followed by
+6. Press `Ctrl+Shift+P`, select **Tasks: Run Task**, then select
    **Dev: Start all**.
-8. Open `http://localhost:5173`.
+7. Open `http://localhost:5173`.
 
-Do not search for `Dev: Start all` directly in the command palette. Task labels
-are shown only after selecting **Tasks: Run Task**. The same screen is available
-from the VS Code menu under **Terminal > Run Task**.
+Do not search for `Dev: Start all` directly in the command palette. It is a
+workspace task and appears after selecting **Tasks: Run Task**. The same list
+is available from **Terminal > Run Task**.
 
-The task starts these processes in parallel:
+### Application Ports
 
-| Process | Container port | Host URL |
+| Process | Port | URL |
 | --- | ---: | --- |
-| Vite frontend | `5173` | `http://localhost:5173` |
+| Frontend (Vite) | `5173` | `http://localhost:5173` |
 | User Service | `8001` | `http://localhost:8001` |
 | Todo Service | `8002` | `http://localhost:8002` |
 
-Each development server occupies its own task terminal and continuously prints
-logs there. This is expected. Do not press `Ctrl+C` in those terminals unless
-the corresponding server should be stopped. To enter commands while the
-servers continue running, create a separate shell with the terminal panel's
-**+** button or **Terminal > New Terminal**.
+VS Code forwards these ports from the `workspace` container. A forwarded port
+returns `ECONNREFUSED` until **Dev: Start all** has started the corresponding
+application process.
 
-The ports are exposed through the VS Code Dev Containers port-forwarding
-session. The workspace service intentionally has no Docker `ports:` entries.
-Therefore, running only `docker compose up` or opening the URL before VS Code
-has attached will not expose `localhost:5173`.
+Each development server occupies a task terminal and continuously prints logs.
+Use the terminal panel's **+** button for a separate interactive shell. Pressing
+`Ctrl+C` in a task terminal stops only that server.
 
-The forwarded ports can be inspected from VS Code's **Ports** panel. The
-bottom-left status area should show that the current window is connected to
-**Homelab App Development**.
+### Later Starts
 
-## Later Starts
+Dependencies and database data persist in Docker named volumes. For a normal
+later session:
 
-Named volumes preserve dependencies and database data when the containers are
-stopped. On a normal later start:
+1. Select **Dev Containers: Reopen in Container**.
+2. Select **Tasks: Run Task > Dev: Start all**.
 
-1. Reopen the directory in the Dev Container.
-2. Run **Dev: Start all**.
+The image and dependencies are reused.
 
-The Docker image and dependencies do not need to be recreated for every source
-change.
+## Common Actions
 
-## Stopping The Environment
+| Need | Command or VS Code action |
+| --- | --- |
+| Start the environment | **Dev Containers: Reopen in Container** |
+| Start all application processes | **Tasks: Run Task > Dev: Start all** |
+| Open an interactive container shell | **Terminal > New Terminal** |
+| Run Python tests | **Tasks: Run Task > Test: Python services** |
+| Run all lint checks | **Tasks: Run Task > Lint: All** |
+| Stop one application process | `Ctrl+C` in that process's task terminal |
+| Stop the complete environment | **Dev Containers: Reopen Folder Locally**, close the attached window, or use the `stop` command below |
+| Remove containers and network but retain data | Use the `down` command below |
+| Full reset, including dependencies and databases | Use `down --volumes` below |
 
-The Compose-based configuration contains:
-
-```json
-"shutdownAction": "stopCompose"
-```
-
-When the last VS Code window disconnects from the primary `workspace`
-container, the Dev Containers extension stops the complete Compose environment,
-not only the workspace service. In this project that means `workspace`,
-`user-db`, and `todo-db` are stopped together.
-
-Use **Dev Containers: Reopen Folder Locally** when the repository should remain
-open in VS Code outside the container. Closing the attached VS Code window also
-triggers the shutdown action. Application processes stop, but containers,
-images, named volumes, installed dependencies, caches, and PostgreSQL data are
-preserved for the next reopen.
-
-The equivalent explicit host command is:
+Run explicit Compose lifecycle commands from the `App` directory:
 
 ```bash
-docker compose \
-  --project-name app_devcontainer \
-  -f .devcontainer/compose.yaml \
-  stop
+# Stop workspace and both databases; retain everything for a fast restart.
+docker compose --project-name app_devcontainer -f .devcontainer/compose.yaml stop
+
+# Remove containers and the Compose network; retain named volumes and images.
+docker compose --project-name app_devcontainer -f .devcontainer/compose.yaml down
+
+# Full reset: also delete venvs, node_modules, caches, and database data.
+docker compose --project-name app_devcontainer -f .devcontainer/compose.yaml down --volumes
 ```
 
-There are three different cleanup levels:
+For normal daily shutdown, use `stop`. The final command intentionally deletes
+all local PostgreSQL data.
 
-| Action | Containers | Named volumes and database data | Images |
-| --- | --- | --- | --- |
-| `stop` or `shutdownAction: stopCompose` | Stopped but retained | Retained | Retained |
-| `down` | Removed | Retained | Retained |
-| `down --volumes` | Removed | **Deleted** | Retained |
+## Change Guide
 
-For an ordinary end of the working day, use `stopCompose`/`stop`. Use `down`
-only when the containers and Compose network should be recreated. Use
-`down --volumes` only for an intentional full dependency and database reset.
+| Change | Required action |
+| --- | --- |
+| Python, JSX, CSS, or other source | Save the file; Uvicorn reload or Vite HMR handles it |
+| `requirements-test.txt` | Rerun `bash .devcontainer/post-create.sh` or install into the relevant venv |
+| `package-lock.json` | Run `npm --prefix frontend ci` |
+| Dockerfile, Node Feature, Compose, or Dev Container settings | **Dev Containers: Rebuild Container** |
 
-## Dev Container And Compose Relationship
+Normal source changes do not rebuild a Docker image. The Windows `App`
+directory is bind-mounted into the container, so saved files are immediately
+visible under `/workspace`.
 
-A Dev Container is not a special container type and `.devcontainer` is only a
-conventional configuration directory. The Dev Containers extension first
-finds `.devcontainer/devcontainer.json`, which contains the connection between
-VS Code and Compose:
+## Architecture And Internals
+
+The remaining sections explain why the environment is designed this way and
+what VS Code and Docker do behind the scenes. They are reference material, not
+prerequisites for the quick start.
+
+### System Overview
+
+```text
+Windows
+  VS Code UI
+  App source directory
+  Docker Desktop
+        |
+        | creates the Compose project
+        v
+app_devcontainer
+  workspace container
+    VS Code Server
+    User Service process
+    Todo Service process
+    Vite process
+    Python and Node development tools
+
+  user-db container
+  todo-db container
+```
+
+The complete Compose project is the local development environment. Only the
+`workspace` service is the primary container to which VS Code attaches.
+
+### Dev Container And Compose Relationship
+
+A Dev Container is not a special container type. `.devcontainer` is a
+conventional configuration directory discovered by the Dev Containers
+extension. Its `devcontainer.json` connects VS Code to Compose:
 
 ```json
 "dockerComposeFile": "compose.yaml",
-"service": "workspace"
+"service": "workspace",
+"workspaceFolder": "/workspace"
 ```
 
-`dockerComposeFile` is resolved relative to `devcontainer.json`, so it selects
-`.devcontainer/compose.yaml`. The `service` value tells VS Code which Compose
-service is the container that should host the editor, terminals, extensions,
-and development processes.
+- `dockerComposeFile` selects `.devcontainer/compose.yaml` relative to
+  `devcontainer.json`.
+- `service` selects the Compose service that hosts VS Code, terminals,
+  extensions, tasks, and application processes.
+- `workspaceFolder` selects the project directory opened inside that container.
 
-The Compose YAML is not executed inside the workspace container. The Dev
-Containers extension invokes Docker Compose through Docker Desktop on the
-Windows host. Docker Compose then asks the Docker Engine to create the services
-declared in the file:
+The Compose YAML does not run inside the container. The Dev Containers
+extension invokes Docker Compose through Docker Desktop on Windows. Docker
+Compose asks the Docker Engine to create:
 
 ```text
-Compose project: app_devcontainer
-        |
-        +--> workspace   <- VS Code attaches here; this is the Dev Container
-        +--> user-db     <- PostgreSQL sidecar
-        +--> todo-db     <- PostgreSQL sidecar
+app_devcontainer
+  +-- workspace   <- primary Dev Container
+  +-- user-db     <- PostgreSQL sidecar
+  +-- todo-db     <- PostgreSQL sidecar
 ```
 
-Therefore, the complete Compose project is the local development environment,
-while only its `workspace` service is used as the Dev Container.
-
-Path values in `compose.yaml` are interpreted relative to the directory that
-contains the Compose file. Consequently:
+Paths in `compose.yaml` are relative to its `.devcontainer` directory:
 
 ```yaml
 build:
@@ -159,161 +169,79 @@ build:
   dockerfile: Dockerfile
 ```
 
-selects `.devcontainer/Dockerfile`, while:
+This selects `.devcontainer/Dockerfile`. The source mount:
 
 ```yaml
 volumes:
   - ..:/workspace:cached
 ```
 
-mounts the parent `App` directory from Windows into `/workspace` in the
-container.
+mounts the parent `App` directory from Windows at `/workspace`. `cached` is a
+Docker Desktop consistency/performance hint, not a dependency cache.
 
-The extension may generate temporary Compose override files in the host's temp
-directory. These add Dev Container Features, identifying labels, the VS Code
-server setup, and container lifecycle details on top of the repository's
-`compose.yaml`; they do not replace the repository configuration.
+The extension may create temporary Compose overrides on the host. They add
+Dev Container Features, identifying labels, VS Code Server setup, and lifecycle
+details on top of the repository's Compose definition.
 
-### Local VS Code And Remote Execution Context
+### Local VS Code And Remote Execution
 
-The VS Code window remains a Windows application, but the Dev Containers
-extension installs and connects to a VS Code Server inside the `workspace`
-container. After that connection, the container becomes the remote execution
-context for the opened window:
+The VS Code interface remains a Windows application. The extension installs a
+VS Code Server in the `workspace` container and connects the window to it:
 
 ```text
-VS Code user interface on Windows
+VS Code UI on Windows
         |
         | remote connection
         v
-VS Code Server in the workspace container
-        |
-        +--> integrated terminals run here
-        +--> shell tasks run here
-        +--> container-side extensions run here
-        +--> /workspace is the opened project folder
+VS Code Server in workspace
+        +-- integrated terminals run here
+        +-- shell tasks run here
+        +-- container-side extensions run here
+        +-- /workspace is opened here
 ```
 
-This remote connection is the reason commands from `.vscode/tasks.json` run in
-the container. The `${workspaceFolder}` variable does not select the execution
-machine. It only resolves to the folder opened in the current VS Code context.
-Because `devcontainer.json` declares:
-
-```json
-"workspaceFolder": "/workspace"
-```
-
-a task value such as:
+This remote connection makes tasks run in the container. The
+`${workspaceFolder}` variable does not choose the execution machine; it only
+resolves to the current workspace path. In this environment:
 
 ```json
 "cwd": "${workspaceFolder}/user-service"
 ```
 
-resolves to `/workspace/user-service` inside the container. If the same
-repository were opened locally instead of through the Dev Container, VS Code
-would execute the task in the local context and `${workspaceFolder}` would be
-the Windows repository path.
-
-### Development Topology Versus Integration Tests
-
-The current topology deliberately runs User Service, Todo Service, and Vite as
-ordinary Linux processes in one `workspace` container. This gives the editor,
-terminals, linters, test runners, and all application source one convenient
-execution environment. The two PostgreSQL databases remain separate Compose
-containers.
-
-Integration testing does not automatically require one container per
-application service. The appropriate topology depends on the boundary being
-tested:
-
-- A test that checks whether a service can read and write PostgreSQL can use
-  the current workspace process plus its database container.
-- A test that checks communication between independently deployed services is
-  better served by separate application containers.
-- A test of the built Docker images should start those images, not the editable
-  workspace processes.
-
-Separate service containers are useful for the latter cases because they test
-additional runtime contracts:
-
-- each service has only the files and dependencies included in its own image;
-- environment variables are passed to the correct service;
-- services communicate through Compose DNS names and container ports instead
-  of sharing `localhost`;
-- startup order and health checks operate across real container boundaries;
-- the complete environment can be created cleanly and removed after the test.
-
-For example, a future integration environment could use:
+becomes:
 
 ```text
-frontend container
-        |
-user-service container <--> user-db container
-        |
-todo-service container <--> todo-db container
+/workspace/user-service
 ```
 
-That would be an additional test topology, not a replacement required for the
-current daily-development Dev Container.
+If the repository is reopened locally, tasks execute in the local context and
+`${workspaceFolder}` becomes the Windows repository path.
 
-## What Runs And When
+### Lifecycle: Create, Reopen, Start
 
-Several independent VS Code and Docker mechanisms participate in this setup.
-They do not execute every repository file whenever **Reopen in Container** is
-selected.
+The files do not all execute on every reopen.
 
-### Commands Provided By VS Code
-
-The following commands do not come from this repository:
-
-| Command | Provider | Purpose |
-| --- | --- | --- |
-| **Dev Containers: Reopen in Container** | VS Code Dev Containers extension | Creates or starts the container environment and attaches VS Code |
-| **Tasks: Run Task** | VS Code's built-in Tasks system | Lists tasks discovered in the opened workspace |
-| **Terminal: Create New Terminal** | VS Code | Opens an interactive shell in the attached workspace container |
-
-The repository supplies configuration to those systems. It does not implement
-the **Reopen in Container** or **Tasks: Run Task** commands themselves.
-
-### First Container Creation Or Rebuild
-
-On the first creation, or after **Dev Containers: Rebuild Container**, this
-chain is followed:
+#### First Creation Or Rebuild
 
 ```text
-Dev Containers extension
+Dev Containers extension reads devcontainer.json
         |
-        +--> reads .devcontainer/devcontainer.json
-        |       |
-        |       +--> selects compose.yaml
-        |       +--> selects the workspace service
-        |       +--> requests Node.js and VS Code extensions
-        |       +--> declares forwarded ports
-        |       +--> declares postCreateCommand
+        +-- Compose reads compose.yaml
+        |     +-- builds workspace from Dockerfile
+        |     +-- starts both databases
+        |     +-- mounts source and named volumes
         |
-        +--> Docker Compose reads .devcontainer/compose.yaml
-        |       |
-        |       +--> builds workspace from .devcontainer/Dockerfile
-        |       +--> starts user-db and todo-db
-        |       +--> creates/mounts named volumes
-        |       +--> bind-mounts App at /workspace
-        |
-        +--> installs the Node Dev Container Feature into the image
-        +--> starts and attaches to the workspace container
-        +--> runs .devcontainer/post-create.sh automatically
-                |
-                +--> creates both Python venvs
-                +--> installs Python dependencies and lint tools
-                +--> runs npm ci for the frontend
+        +-- installs the Node Feature and VS Code extensions
+        +-- attaches VS Code to workspace
+        +-- runs post-create.sh
+              +-- creates two Python venvs
+              +-- installs Python dependencies and lint tools
+              +-- runs npm ci
 ```
 
-At the end of this flow the development environment is prepared, but Uvicorn
-and Vite are still not running.
+At this point the environment is ready, but Uvicorn and Vite are not running.
 
-### Normal Reopen Of An Existing Container
-
-When the image and containers already exist, **Reopen in Container** normally
-reuses them:
+#### Normal Reopen
 
 ```text
 read devcontainer.json
@@ -325,268 +253,192 @@ attach VS Code to /workspace
 activate port forwarding and container-side extensions
 ```
 
-In this case the Dockerfile is not rebuilt, the Node Feature is not reinstalled,
-and `post-create.sh` does not run again. Named volumes already contain the
-installed dependencies and database data.
+The Dockerfile is not rebuilt, the Node Feature is not reinstalled, and
+`post-create.sh` does not run when an existing container is simply reopened.
 
-`post-create.sh` runs again when a new container is created, including after a
-Dev Container rebuild. It can also be invoked manually when dependencies need
-to be refreshed, but manual execution is not part of every normal start.
+#### Application Start
 
-### How VS Code Discovers `Dev: Start all`
-
-After VS Code attaches, `/workspace` becomes the opened workspace folder. VS
-Code's built-in Tasks system automatically looks for:
-
-```text
-/workspace/.vscode/tasks.json
-```
-
-That file defines these repository-specific tasks:
-
-| Task label | What it runs |
-| --- | --- |
-| `Dev: User service` | User Service Uvicorn process with reload on port `8001` |
-| `Dev: Todo service` | Todo Service Uvicorn process with reload on port `8002` |
-| `Dev: Frontend` | `npm run dev` and the Vite server on port `5173` |
-| `Dev: Start all` | The three development tasks above in parallel |
-| `Test: Python services` | Both Python test suites |
-| `Lint: All` | Black, Flake8, and frontend ESLint |
-
-`Dev: Start all` is therefore not a Dev Container command. It is the `label`
-of a composite task in `.vscode/tasks.json`. Selecting **Tasks: Run Task** makes
-VS Code read that list; selecting `Dev: Start all` then follows its `dependsOn`
-entries and starts the three child tasks.
-
-### Application Startup Chain
-
-The final runtime chain is:
+Once `/workspace` is open, VS Code discovers `/workspace/.vscode/tasks.json`.
+Selecting `Dev: Start all` follows its `dependsOn` list:
 
 ```text
 .vscode/tasks.json
-        |
-        +--> Dev: User service
-        |       +--> user-service/.venv/bin/uvicorn
-        |               +--> imports user-service/app.py
-        |
-        +--> Dev: Todo service
-        |       +--> todo-service/.venv/bin/uvicorn
-        |               +--> imports todo-service/app.py
-        |
-        +--> Dev: Frontend
-                +--> npm run dev
-                        +--> reads frontend/package.json script
-                        +--> starts Vite
-                                +--> reads frontend/vite.config.js
+  +-- Dev: User service
+  |     +-- user-service/.venv/bin/uvicorn
+  |           +-- imports user-service/app.py
+  |
+  +-- Dev: Todo service
+  |     +-- todo-service/.venv/bin/uvicorn
+  |           +-- imports todo-service/app.py
+  |
+  +-- Dev: Frontend
+        +-- npm run dev
+              +-- package.json starts Vite
+                    +-- Vite reads vite.config.js
 ```
 
-Only at this point do ports `5173`, `8001`, and `8002` have listening
-application processes. Port forwarding may be configured earlier, but it
-returns `ECONNREFUSED` until these processes start.
+Only now do ports `5173`, `8001`, and `8002` have listening processes.
 
-## File Responsibilities
+### Repository File Map
 
-### `.devcontainer/devcontainer.json`
+| File | Read or executed by | Responsibility |
+| --- | --- | --- |
+| `.devcontainer/devcontainer.json` | Dev Containers extension | Selects Compose, primary service, workspace, Features, extensions, forwarded ports, and lifecycle command |
+| `.devcontainer/compose.yaml` | Docker Compose on the host | Defines workspace, databases, networking, mounts, health checks, and named volumes |
+| `.devcontainer/Dockerfile` | Docker builder | Creates the OS-level workspace image |
+| `.devcontainer/post-create.sh` | Dev Containers lifecycle | Installs repository dependencies after a new container is created |
+| `.vscode/tasks.json` | VS Code Tasks | Defines start, test, and lint commands |
+| `frontend/vite.config.js` | Vite after `npm run dev` | Binds the dev server and proxies local API routes |
+| `.gitignore` | Git | Excludes generated development files |
+| `.flake8` | Flake8 | Excludes venv content from application linting |
 
-This is the entry point read by the VS Code Dev Containers extension. It tells
-VS Code:
+### File Details
 
-- to use `.devcontainer/compose.yaml`;
-- to attach the editor and terminal to the `workspace` service;
-- to start the workspace and both database services;
-- to use `/workspace` as the opened repository directory;
-- to install Node.js `20.20.2` through a Dev Container Feature;
-- which VS Code extensions and editor settings belong inside the container;
-- which application ports VS Code must forward;
-- to run `post-create.sh` after creating the environment.
+#### `devcontainer.json`
 
-`shutdownAction: stopCompose` stops the Compose services when the Dev Container
-session is closed. It does not delete the named volumes.
+Besides selecting Compose and `workspace`, this file:
 
-### `.devcontainer/compose.yaml`
+- starts `workspace`, `user-db`, and `todo-db` through `runServices`;
+- installs Node.js `20.20.2` as a Dev Container Feature;
+- installs Python, ESLint, and YAML VS Code extensions in the remote context;
+- forwards ports `5173`, `8001`, and `8002`;
+- runs `post-create.sh` after container creation;
+- sets `shutdownAction` to `stopCompose`.
 
-Compose defines the runtime topology. It creates three long-running containers:
+`stopCompose` stops the three Compose services when the last attached editor
+window disconnects. It retains containers, images, and named volumes.
 
-- `workspace`: Python, Node.js, project dependencies, terminals, and all three
-  application development processes;
-- `user-db`: PostgreSQL for User Service;
-- `todo-db`: PostgreSQL for Todo Service.
+#### `compose.yaml`
 
-The workspace command is `sleep infinity`. Its purpose is to keep the
-development environment alive so VS Code can attach to it. It is not the
-command that starts the application.
+The `workspace` service contains development runtimes and tools. Its
+`sleep infinity` command keeps the container alive for VS Code; it does not
+start the application.
 
-`depends_on` waits for both PostgreSQL health checks before the workspace is
-started. The service names `user-db` and `todo-db` also become DNS names on the
-private Compose network. This is why the backend tasks can use connection
-strings such as:
+`user-db` and `todo-db` are PostgreSQL 15 sidecars. Compose waits for their
+health checks before starting `workspace`. Service names become DNS names on
+the private Compose network, which is why application URLs use values such as:
 
 ```text
 postgresql://userservice:userpass@user-db:5432/userdb
 ```
 
-The bind mount below makes host edits immediately visible in the container:
+#### `Dockerfile`
 
-```yaml
-- ..:/workspace:cached
-```
+The workspace image starts from the Microsoft Python 3.11 Dev Container image
+and adds compiler tools, PostgreSQL client headers for `psycopg2`, and `psql`.
+It does not copy source or install repository dependencies. Source is mounted
+by Compose and dependencies are installed after creation.
 
-`..` is the `App` directory because `compose.yaml` lives in `.devcontainer`.
-`cached` is a Docker Desktop bind-mount consistency/performance hint; it is not
-a package cache.
+Node.js is added by the Feature in `devcontainer.json`, not by the Dockerfile.
 
-### `.devcontainer/Dockerfile`
+#### `post-create.sh`
 
-The Dockerfile defines the operating-system-level development image. It starts
-from the Microsoft Python 3.11 Dev Container image and adds:
+This script runs automatically after a new container is created. It:
 
-- compiler tools required by some Python packages;
-- PostgreSQL client headers used by `psycopg2`;
-- the `psql` command-line client.
+1. creates `user-service/.venv` and `todo-service/.venv`;
+2. installs each service's `requirements-test.txt`;
+3. installs Black, Flake8, and Ruff;
+4. runs frontend `npm ci` from the lock file.
 
-It does not copy application source or install project dependencies. Source is
-mounted later by Compose, while project dependencies are installed by
-`post-create.sh`. Changing this Dockerfile requires **Dev Containers: Rebuild
-Container**.
+The base image is not empty before this script. It already contains Linux,
+Python, Git, shell tools, PostgreSQL client tools, and the Node Feature.
 
-Node.js is not installed in this Dockerfile. The Node Feature declared in
-`devcontainer.json` adds the pinned Node version while VS Code creates the
-development image.
+#### `tasks.json`
 
-### `.devcontainer/post-create.sh`
+The Tasks system exposes:
 
-This lifecycle script prepares repository-level dependencies after the source
-and named volumes are mounted. It automatically:
+| Task | Behavior |
+| --- | --- |
+| `Dev: User service` | Uvicorn with reload on `8001` and User Service environment variables |
+| `Dev: Todo service` | Uvicorn with reload on `8002` and Todo Service environment variables |
+| `Dev: Frontend` | Vite with HMR on `5173` |
+| `Dev: Start all` | Starts the three development tasks in parallel |
+| `Test: Python services` | Runs both Python test suites |
+| `Lint: All` | Runs Black, Flake8, and frontend ESLint |
 
-1. creates a separate `.venv` for each Python service;
-2. installs each service's `requirements-test.txt` dependencies;
-3. installs the Python lint tools used by the repository;
-4. runs `npm ci` for the frontend using `package-lock.json`.
+Task `env` entries apply only to the process started by that task. They do not
+install dependencies or permanently modify the container.
 
-The base container is not empty before this script runs: it already contains
-Linux, Python, Git, shell tools, PostgreSQL client tools, and the Node Feature.
-The script adds only dependencies belonging to this application.
+#### `vite.config.js`
 
-`npm ci` is used for reproducible initial installation. It installs the exact
-dependency tree recorded in `package-lock.json`. Normal frontend commands are
-still the familiar commands and run from `/workspace/frontend`:
-
-```bash
-npm run dev -- --host 0.0.0.0
-npm run lint
-npm run build
-```
-
-### `.vscode/tasks.json`
-
-The tasks file stores repeatable development commands. **Dev: Start all** starts
-the following three tasks in parallel:
-
-- **Dev: User service**: Uvicorn on port `8001` with `--reload`;
-- **Dev: Todo service**: Uvicorn on port `8002` with `--reload`;
-- **Dev: Frontend**: Vite on port `5173` with HMR.
-
-The backend tasks also provide local-only database URLs and other runtime
-environment variables. These variables configure the running application;
-they are different from dependencies installed by `post-create.sh`.
-
-The file also provides **Test: Python services** and **Lint: All** tasks.
-
-### `frontend/vite.config.js`
-
-The frontend uses relative API paths such as `/login` and `/todos`. In the
-Kubernetes environment, Gateway API `HTTPRoute` resources send those paths to
-the correct backend service and send `/` to the frontend.
-
-The local Vite server has no Kubernetes Gateway in front of it. Its development
-proxy therefore reproduces the same routing locally:
+The frontend uses relative API routes. Kubernetes Gateway API routes them in
+staging and production, but there is no Gateway in front of local Vite. The
+development proxy reproduces the required routing:
 
 ```text
-browser -> localhost:5173/login -> Vite proxy -> localhost:8001
-browser -> localhost:5173/todos -> Vite proxy -> localhost:8002
+browser -> localhost:5173/login -> Vite -> localhost:8001
+browser -> localhost:5173/todos -> Vite -> localhost:8002
 ```
 
-Before this change, `npm run dev` could still render the frontend, but API calls
-using relative paths had no local component that knew which backend should
-receive them. They worked in Kubernetes because the `HTTPRoute` performed that
-routing.
+`server.host: 0.0.0.0` makes Vite reachable through container port forwarding.
+The `server` configuration affects `npm run dev`; it does not change the
+production build or Caddy runtime.
 
-`server.host: 0.0.0.0` is needed because Vite now runs inside a container.
-Binding only to the container's loopback interface would prevent VS Code port
-forwarding from reaching it.
-
-The `server` block affects only `npm run dev`. It does not change the production
-`npm run build` output or the Caddy container that serves the built frontend.
-
-### `.gitignore` and `.flake8`
-
-`.gitignore` prevents generated virtual environments, Python caches, coverage
-data, and test cache files from entering Git. `.flake8` excludes `.venv`
-directories so linting checks application code instead of thousands of
-installed dependency files.
-
-## Storage And Caches
-
-The source code and generated dependencies use different storage types:
+### Storage And Caches
 
 | Data | Storage | Purpose |
 | --- | --- | --- |
-| Repository source | Windows directory bind-mounted at `/workspace` | Host and container see the same edits immediately |
+| Repository source | Windows bind mount at `/workspace` | Host and container see the same source edits |
 | `user-service/.venv` | Docker named volume | Installed User Service Python packages |
 | `todo-service/.venv` | Docker named volume | Installed Todo Service Python packages |
 | `frontend/node_modules` | Docker named volume | Installed frontend packages |
-| pip cache | Docker named volume | Downloaded Python wheels and archives reused by pip |
-| npm cache | Docker named volume | Downloaded npm package data reused by npm |
-| PostgreSQL data | Two Docker named volumes | Local development databases survive container restarts |
+| pip cache | Docker named volume | Reuses downloaded Python wheels and archives |
+| npm cache | Docker named volume | Reuses downloaded npm package data |
+| User and Todo PostgreSQL data | Two Docker named volumes | Databases survive container restarts |
 
-The pip cache and each `.venv` solve different problems. The cache avoids
-downloading a package again; the venv contains the installed, executable copy
-used by the service. The same distinction applies to npm cache and
-`node_modules`.
+A package cache and an installed dependency directory are different:
 
-These named volumes are managed inside Docker Desktop's Linux storage, not as
-ordinary directories beside the source repository. They can be inspected with:
+- pip cache avoids downloading a package again; a venv contains the installed
+  executable package;
+- npm cache avoids downloading package archives again; `node_modules` contains
+  the installed dependency tree.
+
+Named volumes live in Docker Desktop's Linux storage, not as ordinary
+directories in the repository. Inspect them with:
 
 ```bash
 docker volume ls
 docker volume inspect app_devcontainer_user-service-venv
 ```
 
-The exact Compose-generated prefix can vary with the project directory name.
+Separate Python venvs keep the two services' packages independent. A container
+isolates the development environment from Windows, but it does not isolate
+Python dependencies inside itself. Per-service venvs also match CI and reduce
+future work if the services move to separate repositories.
 
-### Why Two Python Virtual Environments?
+### Development Topology And Integration Tests
 
-A container isolates the development environment from Windows, but it does not
-automatically isolate Python packages from each other inside that container. A
-Dev Container is therefore not a Python virtual environment.
+The daily development topology runs User Service, Todo Service, and Vite as
+ordinary Linux processes in one `workspace` container. This makes the editor,
+terminals, linting, tests, and all source code easy to access. Databases remain
+separate containers.
 
-Separate venvs keep User Service and Todo Service dependencies independent. The
-services happen to share several versions now, but either service can change
-later without modifying the other's environment. This also matches the CI
-model and makes moving each service to its own repository less disruptive.
+Integration tests do not inherently require one application container per
+service:
 
-## Source Reload Behavior
+- service-to-database tests can use the current workspace process and database
+  sidecar;
+- tests of service-to-service deployment behavior benefit from separate
+  application containers;
+- tests of built Docker images must run those images rather than workspace
+  processes.
 
-No image rebuild is needed for normal application edits:
+Separate service containers test boundaries that the shared workspace does not:
 
-- a Python file saved on Windows changes the bind-mounted file in `/workspace`;
-- Uvicorn `--reload` restarts the relevant Python process;
-- Vite HMR applies frontend changes in the browser;
-- database files remain in their named volumes.
+- each image contains all required files and dependencies;
+- each service receives the correct environment variables;
+- communication uses Compose DNS and container ports instead of shared
+  `localhost`;
+- startup order and health checks cross real container boundaries;
+- the test environment can be created cleanly and removed afterward.
 
-Use the following rule of thumb:
+Such a Compose setup would be an additional integration-test topology, not a
+replacement required for daily development.
 
-| Change | Required action |
-| --- | --- |
-| Python, JSX, CSS, or other source | Save the file; reload/HMR handles it |
-| `requirements-test.txt` | Rerun `bash .devcontainer/post-create.sh` or install into the relevant venv |
-| `package-lock.json` | Run `npm --prefix frontend ci` |
-| Dockerfile, Node Feature, Compose, or Dev Container configuration | Run **Dev Containers: Rebuild Container** |
+### Direct Command Reference
 
-## Direct Commands
-
-The VS Code tasks are shortcuts, not a new application runtime. The same
-commands can be run directly in the Dev Container terminal.
+VS Code tasks are shortcuts. The same commands can be run in a Dev Container
+terminal.
 
 ```bash
 cd /workspace/user-service
@@ -606,7 +458,7 @@ cd /workspace/frontend
 npm run dev -- --host 0.0.0.0
 ```
 
-Tests and lint checks can also be run directly:
+Tests and lint checks:
 
 ```bash
 user-service/.venv/bin/pytest user-service
@@ -616,23 +468,5 @@ user-service/.venv/bin/flake8 user-service todo-service
 npm --prefix frontend run lint
 ```
 
-## Resetting The Environment
-
-**Dev Containers: Rebuild Container** recreates the workspace container but
-keeps named volumes. Use it when the development image or Dev Container
-configuration changes.
-
-Deleting the Compose volumes is a stronger reset. It removes installed
-dependencies and both local databases, so the next creation installs packages
-again and starts with empty databases:
-
-```bash
-docker compose \
-  --project-name app_devcontainer \
-  -f .devcontainer/compose.yaml \
-  down --volumes
-```
-
-Run that command only when the local development data is intentionally
-disposable. The credentials in `compose.yaml` are local-development values and
-must not be reused in staging or production.
+The credentials in `compose.yaml` are intentionally local-development values
+and must not be reused in staging or production.
