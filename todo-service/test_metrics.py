@@ -5,7 +5,7 @@ from opentelemetry import context, trace
 from starlette.requests import Request
 
 from app import app
-from metrics import REQUEST_DURATION, observe_request
+from metrics import REQUEST_COUNT, REQUEST_DURATION, observe_request
 
 
 def make_request(path: str, route_path: str | None = None, method: str = "GET"):
@@ -31,6 +31,17 @@ def duration_samples(handler: str, method: str = "GET"):
         family
         for family in REQUEST_DURATION.collect()
         if family.name == "http_request_duration_seconds"
+    )
+    return [
+        sample
+        for sample in family.samples
+        if sample.labels["handler"] == handler and sample.labels["method"] == method
+    ]
+
+
+def request_count_samples(handler: str, method: str = "GET"):
+    family = next(
+        family for family in REQUEST_COUNT.collect() if family.name == "http_requests"
     )
     return [
         sample
@@ -118,10 +129,13 @@ def test_metric_labels_use_normalized_routes_and_no_request_ids():
     )
 
 
-def test_probe_paths_do_not_enter_latency_histogram():
+def test_probe_paths_do_not_enter_application_metrics():
     for path in ("/health", "/ready", "/metrics"):
+        count_before = len(request_count_samples(path))
+        duration_before = len(duration_samples(path))
         observe_request(make_request(path, path), 200, 0.1)
-        assert not duration_samples(path)
+        assert len(request_count_samples(path)) == count_before
+        assert len(duration_samples(path)) == duration_before
 
 
 def test_metrics_endpoint_uses_openmetrics_and_is_declared_once():

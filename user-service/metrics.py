@@ -70,16 +70,16 @@ def _sampled_trace_exemplar() -> dict[str, str] | None:
 def observe_request(
     request: Request, status_code: int, duration_seconds: float
 ) -> None:
-    """Record a request and attach an exemplar to non-probe latency samples."""
+    """Record an application request and attach its active trace as an exemplar."""
+    if request.url.path in PROBE_PATHS:
+        return
+
     labels = {
         "method": request.method,
         "status": status_label(status_code),
         "handler": normalized_route(request),
     }
     REQUEST_COUNT.labels(**labels).inc()
-
-    if request.url.path in PROBE_PATHS:
-        return
 
     REQUEST_DURATION.labels(**labels).observe(
         max(duration_seconds, 0.0),
