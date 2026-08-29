@@ -88,8 +88,9 @@ async def request_logging_middleware(request: Request, call_next):
         )
         raise
 
-    # Health and metrics probes are high-volume infrastructure noise.
-    if request.url.path not in {"/health", "/ready", "/metrics"}:
+    # Keep successful probes quiet, but retain failed probe results for diagnosis.
+    is_probe = request.url.path in {"/health", "/ready", "/metrics"}
+    if not is_probe or response.status_code >= 400:
         status_code = response.status_code
         level = logging.INFO if status_code < 400 else logging.WARNING
         if status_code >= 500:
@@ -166,11 +167,7 @@ def get_db():  # pragma: no cover
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
         raise ValueError("DATABASE_URL environment variable is required")
-    try:
-        return psycopg.connect(database_url, row_factory=dict_row)
-    except Exception:
-        logger.exception("Database connection failed")
-        raise
+    return psycopg.connect(database_url, row_factory=dict_row)
 
 
 def init_db():  # pragma: no cover

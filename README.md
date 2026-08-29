@@ -403,11 +403,12 @@ both a plain Uvicorn access line and the JSON `http.request.completed` record.
 
 Health, readiness, and metrics endpoints are intentionally quiet on successful
 requests. This avoids flooding pod logs with Kubernetes probes and Prometheus
-scrapes; it does not disable the endpoints. A failed readiness check still
-records the database exception on the server side, while Kubernetes exposes
-the probe result through Pod conditions and Events (`kubectl describe pod`),
-and the raw exception is not returned to the client. `/metrics` is a scrape
-response, not an application log record.
+scrapes; it does not disable the endpoints. A non-2xx probe result is logged so
+failed probes remain diagnosable. A failed readiness check also records the
+database exception on the server side, while Kubernetes exposes the probe
+result through Pod conditions and Events (`kubectl describe pod`), and the raw
+exception is not returned to the client. `/metrics` is a scrape response, not
+an application log record.
 
 The request event is emitted after the response:
 
