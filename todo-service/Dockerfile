@@ -32,6 +32,7 @@ RUN apt-get update \
 COPY --from=builder /app/.venv /app/.venv
 COPY app.py .
 COPY logging_config.py .
+COPY metrics.py .
 
 RUN useradd --create-home --shell /bin/bash app \
     && chown -R app:app /app

@@ -19,9 +19,9 @@ from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from prometheus_fastapi_instrumentator import Instrumentator
 from psycopg.rows import dict_row
 from pydantic import BaseModel, field_validator
+from metrics import observe_request, openmetrics_response
 
 
 SERVICE_NAME = os.getenv("OTEL_SERVICE_NAME", "user-service")
@@ -78,6 +78,8 @@ async def request_logging_middleware(request: Request, call_next):
     try:
         response = await call_next(request)
     except Exception:
+        duration_seconds = perf_counter() - started_at
+        observe_request(request, 500, duration_seconds)
         logger.exception(
             "Unhandled request failure",
             extra={
@@ -85,11 +87,14 @@ async def request_logging_middleware(request: Request, call_next):
                 "outcome": "failure",
                 "http_method": request.method,
                 "http_route": _request_route(request),
-                "duration_ms": round((perf_counter() - started_at) * 1000, 2),
+                "duration_ms": round(duration_seconds * 1000, 2),
                 "actor_id": getattr(request.state, "actor_id", None),
             },
         )
         raise
+
+    duration_seconds = perf_counter() - started_at
+    observe_request(request, response.status_code, duration_seconds)
 
     # Keep successful probes quiet, but retain failed probe results for diagnosis.
     is_probe = request.url.path in {"/health", "/ready", "/metrics"}
@@ -107,7 +112,7 @@ async def request_logging_middleware(request: Request, call_next):
                 "http_method": request.method,
                 "http_route": _request_route(request),
                 "http_status_code": status_code,
-                "duration_ms": round((perf_counter() - started_at) * 1000, 2),
+                "duration_ms": round(duration_seconds * 1000, 2),
                 "actor_id": getattr(request.state, "actor_id", None),
             },
         )
@@ -117,8 +122,11 @@ async def request_logging_middleware(request: Request, call_next):
 # Enable FastAPI auto-instrumentation
 FastAPIInstrumentor.instrument_app(app)
 
-# Prometheus metrics instrumentation
-Instrumentator().instrument(app).expose(app)
+
+@app.get("/metrics", include_in_schema=False)
+async def metrics_endpoint():
+    return openmetrics_response()
+
 
 # Add CORS middleware
 app.add_middleware(

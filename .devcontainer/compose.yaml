@@ -70,3 +70,7 @@ volumes:
   npm-cache:
   user-db-data:
   todo-db-data:
+
+networks:
+  default:
+    name: homelab-app-dev

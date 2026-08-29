@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: user-service
+    scrape_protocols:
+      - OpenMetricsText1.0.0
+      - OpenMetricsText0.0.1
+      - PrometheusText1.0.0
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - workspace:8001
+
+  - job_name: todo-service
+    scrape_protocols:
+      - OpenMetricsText1.0.0
+      - OpenMetricsText0.0.1
+      - PrometheusText1.0.0
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - workspace:8002

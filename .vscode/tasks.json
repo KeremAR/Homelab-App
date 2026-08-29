@@ -65,6 +65,65 @@
       "problemMatcher": []
     },
     {
+      "label": "Dev: User service (Observability)",
+      "type": "shell",
+      "command": "uv run --locked uvicorn app:app --host 0.0.0.0 --port 8001 --reload --no-access-log",
+      "options": {
+        "cwd": "${workspaceFolder}/user-service",
+        "env": {
+          "DATABASE_URL": "postgresql://userservice:userpass@user-db:5432/userdb",
+          "SECRET_KEY": "dev-secret-key-change-before-production",
+          "OTEL_SERVICE_NAME": "user-service",
+          "OTEL_SDK_DISABLED": "false",
+          "OTEL_TRACES_EXPORTER": "otlp",
+          "OTEL_EXPORTER_OTLP_ENDPOINT": "http://jaeger:4318",
+          "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+          "OTEL_TRACES_SAMPLER": "always_on"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "group": "observability",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Dev: Todo service (Observability)",
+      "type": "shell",
+      "command": "uv run --locked uvicorn app:app --host 0.0.0.0 --port 8002 --reload --no-access-log",
+      "options": {
+        "cwd": "${workspaceFolder}/todo-service",
+        "env": {
+          "DATABASE_URL": "postgresql://todoservice:todopass@todo-db:5432/tododb",
+          "SECRET_KEY": "dev-secret-key-change-before-production",
+          "USER_SERVICE_URL": "http://localhost:8001",
+          "OTEL_SERVICE_NAME": "todo-service",
+          "OTEL_SDK_DISABLED": "false",
+          "OTEL_TRACES_EXPORTER": "otlp",
+          "OTEL_EXPORTER_OTLP_ENDPOINT": "http://jaeger:4318",
+          "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+          "OTEL_TRACES_SAMPLER": "always_on"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "group": "observability",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Dev: Start all (Observability)",
+      "dependsOn": [
+        "Dev: User service (Observability)",
+        "Dev: Todo service (Observability)",
+        "Dev: Frontend"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    },
+    {
       "label": "Test: Python services",
       "type": "shell",
       "command": "uv run --project user-service --locked pytest user-service && uv run --project todo-service --locked pytest todo-service",

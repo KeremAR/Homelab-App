@@ -156,6 +156,95 @@ docker compose --project-name app_devcontainer -f .devcontainer/compose.yaml dow
 For normal daily shutdown, use `stop`. The final command intentionally deletes
 all local PostgreSQL data.
 
+## Optional Local Observability
+
+An exemplar is a trace ID attached to one histogram observation. It lets you
+move from a latency point in Prometheus/Grafana to the exact sampled Jaeger
+trace that produced it; it does not add trace IDs to regular metric labels or
+create a high-cardinality time series.
+
+The ordinary `Dev: Start all` task keeps `OTEL_SDK_DISABLED=false` for local
+log/trace correlation but sets `OTEL_TRACES_EXPORTER=none`, so it does not try
+to contact a collector that is not running.
+
+For exemplar development, start the optional stack from a host terminal in the
+`App` directory after the Dev Container has been created. After pulling this
+network change, rebuild or reopen the Dev Container once so the explicit
+`homelab-app-dev` network is created:
+
+```bash
+docker compose --project-name app_observability \
+  -f .devcontainer/observability/compose.yaml up -d
+```
+
+The stack attaches to the explicit `homelab-app-dev` network created by the
+main Compose file. Then run **Tasks: Run Task > Dev: Start all
+(Observability)**. That task changes only the application processes to:
+
+```text
+OTEL_SDK_DISABLED=false
+OTEL_TRACES_EXPORTER=otlp
+OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_TRACES_SAMPLER=always_on
+```
+
+The local flow is:
+
+```text
+workspace:user-service /metrics ─┐
+workspace:todo-service /metrics  ├─> Prometheus :9090
+                                  └─> OpenMetrics exemplars
+
+workspace services ── OTLP/HTTP ──> Jaeger :4318
+                                     Jaeger UI :16686
+
+Grafana :3000 ── Prometheus exemplar ─> Jaeger trace
+```
+
+Local URLs:
+
+| Component | URL |
+| --- | --- |
+| Prometheus | `http://localhost:9090` |
+| Jaeger UI | `http://localhost:16686` |
+| Grafana | `http://localhost:3000` |
+
+Stop the optional stack from the host with:
+
+```bash
+docker compose --project-name app_observability \
+  -f .devcontainer/observability/compose.yaml down
+```
+
+It intentionally has no persistent volumes; local traces and metric series
+are disposable. The stack directly scrapes the workspace, so it verifies the
+application, Prometheus exemplar storage and Grafana-to-Jaeger link. It does
+not verify the Kubernetes Grafana Alloy scrape and remote-write path; that
+must be smoke-tested after deployment.
+
+### Local Exemplar Check
+
+After the optional stack is running and **Dev: Start all (Observability)** is
+active, generate traffic against either service and inspect the exposition:
+
+```bash
+curl http://localhost:8001/openapi.json >/dev/null
+curl http://localhost:8001/metrics
+curl 'http://localhost:9090/api/v1/query_exemplars?query=http_request_duration_seconds'
+```
+
+The service response must have an `application/openmetrics-text` content type.
+The histogram bucket lines can contain an exemplar such as
+`# {trace_id="<32 hex characters>"} <value> <timestamp>`. The Prometheus API
+must return the same trace ID. Search for that ID in the Jaeger UI, then use a
+Grafana Prometheus range query for `http_request_duration_seconds` and click
+the exemplar marker to confirm the configured Jaeger link.
+
+If the exporter is disabled, the application can still create trace IDs for
+logs but no trace will arrive in Jaeger. If the optional stack is stopped,
+return to **Dev: Start all** so the services use `OTEL_TRACES_EXPORTER=none`.
+
 ## Change Guide
 
 | Change | Required action |
