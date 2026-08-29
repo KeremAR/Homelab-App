@@ -437,6 +437,12 @@ state when a span is active. `OTEL_RESOURCE_ATTRIBUTES` supplies the service
 identity used by both traces and logs; Helm sets the service, namespace,
 actual image tag, environment, and cluster attributes.
 
+In the Dev Container, `OTEL_SDK_DISABLED=false` keeps local span creation and
+log correlation enabled, while `OTEL_TRACES_EXPORTER=none` disables only trace
+export because no local Collector is running. Kubernetes deployments set an
+OTLP endpoint and use the `otlp` exporter, so their spans continue through
+Alloy to Jaeger.
+
 The formatter allow-lists fields and redacts token/password/secret values and
 email addresses. It never logs request bodies, JWTs, passwords, email
 addresses, or todo content. Alloy keeps low-cardinality fields such as

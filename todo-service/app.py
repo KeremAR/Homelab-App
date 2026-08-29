@@ -39,9 +39,12 @@ logger = logging.getLogger(__name__)
 # Configure OpenTelemetry SDK
 resource = Resource.create(otel_resource_attributes(SERVICE_NAME))
 trace.set_tracer_provider(TracerProvider(resource=resource))
-otlp_exporter = OTLPSpanExporter()
-span_processor = BatchSpanProcessor(otlp_exporter)
-trace.get_tracer_provider().add_span_processor(span_processor)
+if os.getenv("OTEL_TRACES_EXPORTER", "otlp").lower() == "otlp":
+    otel_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+    if otel_endpoint:
+        otlp_exporter = OTLPSpanExporter(endpoint=otel_endpoint)
+        span_processor = BatchSpanProcessor(otlp_exporter)
+        trace.get_tracer_provider().add_span_processor(span_processor)
 
 
 # Enable Psycopg instrumentation before any database connections.

@@ -11,7 +11,8 @@ services:
       UV_PYTHON_DOWNLOADS: "0"
       NPM_CONFIG_CACHE: /home/vscode/.npm
       SECRET_KEY: dev-secret-key-change-before-production
-      OTEL_SDK_DISABLED: "true"
+      OTEL_SDK_DISABLED: "false"
+      OTEL_TRACES_EXPORTER: "none"
     volumes:
       - ..:/workspace:cached
       - user-service-venv:/workspace/user-service/.venv
