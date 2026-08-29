@@ -93,6 +93,7 @@ all local PostgreSQL data.
 | Change | Required action |
 | --- | --- |
 | Python, JSX, CSS, or other source | Save the file; Uvicorn reload or Vite HMR handles it |
+| `frontend/vite.config.js` | Restart the `Dev: Frontend` task; Vite reads its server configuration only at startup |
 | `requirements-test.txt` | Rerun `bash .devcontainer/post-create.sh` or install into the relevant venv |
 | `package-lock.json` | Run `npm --prefix frontend ci` |
 | Dockerfile, Node Feature, Compose, or Dev Container settings | **Dev Containers: Rebuild Container** |
@@ -369,6 +370,12 @@ development proxy reproduces the required routing:
 browser -> localhost:5173/login -> Vite -> localhost:8001
 browser -> localhost:5173/todos -> Vite -> localhost:8002
 ```
+
+Vite HMR updates JSX, CSS and other imported source modules while the frontend
+task is running. It does not reload `vite.config.js`: proxy and server settings
+are read when the Vite process starts. After changing `vite.config.js`, stop
+the `Dev: Frontend` task with `Ctrl+C` and run it again. A Dev Container rebuild
+is not required for this config-only change.
 
 `server.host: 0.0.0.0` makes Vite reachable through container port forwarding.
 The `server` configuration affects `npm run dev`; it does not change the
