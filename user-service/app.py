@@ -130,12 +130,12 @@ def create_access_token(data: dict):
 
 async def verify_token(authorization: str = Header(None)):
     """Verify JWT token and return user_id"""
-    if not authorization or not authorization.startswith("Bearer "):
+    scheme, separator, token = (authorization or "").partition(" ")
+    if scheme.lower() != "bearer" or not separator or not token.strip():
         raise HTTPException(status_code=401, detail="Invalid authorization header")
 
-    token = authorization.split(" ")[1]
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token.strip(), SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("user_id")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
@@ -159,7 +159,7 @@ async def health_check():
     return {"status": "healthy", "service": "user-service"}
 
 
-@app.post("/register", response_model=User)
+@app.post("/api/v1/auth/register", response_model=User)
 async def register(user: UserCreate):
     conn = get_db()
     cursor = conn.cursor()
@@ -190,7 +190,7 @@ async def register(user: UserCreate):
         conn.close()
 
 
-@app.post("/login", response_model=Token)
+@app.post("/api/v1/auth/login", response_model=Token)
 async def login(user_login: UserLogin):
     conn = get_db()
     cursor = conn.cursor()
@@ -215,9 +215,9 @@ async def login(user_login: UserLogin):
         conn.close()
 
 
-@app.get("/verify")
-async def verify_jwt_token(user_id: int = Depends(verify_token)):
-    """Verify JWT token and return user info"""
+@app.get("/api/v1/auth/me", response_model=User)
+async def get_current_user(user_id: int = Depends(verify_token)):
+    """Validate the access token and return the authenticated user."""
     conn = get_db()
     cursor = conn.cursor()
     try:
@@ -229,16 +229,13 @@ async def verify_jwt_token(user_id: int = Depends(verify_token)):
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        return {
-            "valid": True,
-            "user": User(id=user["id"], username=user["username"], email=user["email"]),
-        }
+        return User(id=user["id"], username=user["username"], email=user["email"])
     finally:
         cursor.close()
         conn.close()
 
 
-@app.get("/users/{user_id}", response_model=User)
+@app.get("/api/v1/users/{user_id}", response_model=User)
 async def get_user(user_id: int):
     conn = get_db()
     cursor = conn.cursor()
@@ -257,7 +254,7 @@ async def get_user(user_id: int):
         conn.close()
 
 
-@app.get("/admin/users", response_model=List[User])
+@app.get("/api/v1/admin/users", response_model=List[User])
 async def get_all_users(current_user_id: int = Depends(verify_token)):
     """Admin endpoint to get all users (requires authentication)"""
     conn = get_db()
@@ -275,7 +272,7 @@ async def get_all_users(current_user_id: int = Depends(verify_token)):
         conn.close()
 
 
-@app.post("/admin/create-admin")
+@app.post("/api/v1/admin/create-admin")
 async def create_admin(current_user_id: int = Depends(verify_token)):
     """Create default admin user (requires authentication)"""
     conn = get_db()

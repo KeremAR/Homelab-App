@@ -67,7 +67,7 @@ class TestUserRegistration:
             "password": "testpass123",
         }
 
-        response = client.post("/register", json=user_data)
+        response = client.post("/api/v1/auth/register", json=user_data)
 
         assert response.status_code == 200
         data = response.json()
@@ -87,7 +87,7 @@ class TestUserRegistration:
             "password": "testpass123",
         }
 
-        response = client.post("/register", json=user_data)
+        response = client.post("/api/v1/auth/register", json=user_data)
 
         assert response.status_code == 409
         assert "User already exists" in response.json()["detail"]
@@ -108,7 +108,7 @@ class TestUserLogin:
 
         login_data = {"username": "testuser", "password": "testpass123"}
 
-        response = client.post("/login", json=login_data)
+        response = client.post("/api/v1/auth/login", json=login_data)
 
         assert response.status_code == 200
         data = response.json()
@@ -123,7 +123,7 @@ class TestUserLogin:
 
         login_data = {"username": "nonexistent", "password": "wrongpass"}
 
-        response = client.post("/login", json=login_data)
+        response = client.post("/api/v1/auth/login", json=login_data)
 
         assert response.status_code == 401
         assert "Invalid credentials" in response.json()["detail"]
@@ -142,10 +142,32 @@ class TestUserLogin:
 
         login_data = {"username": "testuser", "password": "wrongpass"}
 
-        response = client.post("/login", json=login_data)
+        response = client.post("/api/v1/auth/login", json=login_data)
 
         assert response.status_code == 401
         assert "Invalid credentials" in response.json()["detail"]
+
+
+class TestCurrentUser:
+    @patch("app.get_db")
+    def test_current_user_returns_authenticated_user(
+        self, mock_get_db, client, mock_db, auth_headers
+    ):
+        mock_get_db.return_value = mock_db.conn
+        mock_db.cursor.fetchone.return_value = {
+            "id": 1,
+            "username": "testuser",
+            "email": "test@example.com",
+        }
+
+        response = client.get("/api/v1/auth/me", headers=auth_headers)
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "id": 1,
+            "username": "testuser",
+            "email": "test@example.com",
+        }
 
 
 class TestGetUser:
@@ -156,7 +178,7 @@ class TestGetUser:
         mock_user = {"id": 1, "username": "testuser", "email": "test@example.com"}
         mock_db.cursor.fetchone.return_value = mock_user
 
-        response = client.get("/users/1")
+        response = client.get("/api/v1/users/1")
 
         assert response.status_code == 200
         data = response.json()
@@ -170,7 +192,7 @@ class TestGetUser:
         mock_get_db.return_value = mock_db.conn
         mock_db.cursor.fetchone.return_value = None
 
-        response = client.get("/users/999")
+        response = client.get("/api/v1/users/999")
 
         assert response.status_code == 404
         assert "User not found" in response.json()["detail"]
@@ -186,7 +208,7 @@ class TestAdminEndpoints:
             {"id": 1},
         ]  # Admin doesn't exist, then return new admin ID
 
-        response = client.post("/admin/create-admin", headers=auth_headers)
+        response = client.post("/api/v1/admin/create-admin", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -201,7 +223,7 @@ class TestAdminEndpoints:
         mock_get_db.return_value = mock_db.conn
         mock_db.cursor.fetchone.return_value = {"id": 1}
 
-        response = client.post("/admin/create-admin", headers=auth_headers)
+        response = client.post("/api/v1/admin/create-admin", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -217,7 +239,7 @@ class TestAdminEndpoints:
         ]
         mock_db.cursor.fetchall.return_value = mock_users
 
-        response = client.get("/admin/users", headers=auth_headers)
+        response = client.get("/api/v1/admin/users", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()

@@ -174,12 +174,12 @@ def init_db():  # pragma: no cover
 
 
 async def verify_token(authorization: str = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
+    scheme, separator, token = (authorization or "").partition(" ")
+    if scheme.lower() != "bearer" or not separator or not token.strip():
         raise HTTPException(status_code=401, detail="Invalid authorization header")
 
-    token = authorization.split(" ")[1]
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token.strip(), SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("user_id")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
@@ -210,13 +210,13 @@ async def health_check():
     return {"status": "healthy", "service": "todo-service"}
 
 
-@app.get("/config", response_model=RuntimeConfig)
+@app.get("/api/v1/config", response_model=RuntimeConfig)
 async def read_runtime_config():
     """Public demo endpoint for observing the active in-memory configuration."""
     return get_runtime_config()
 
 
-@app.post("/admin/reload-config", response_model=RuntimeConfig)
+@app.post("/api/v1/admin/reload-config", response_model=RuntimeConfig)
 async def reload_runtime_config(request: Request):
     """Reload runtime config; only the sidecar on this pod may call this endpoint."""
     client_host = request.client.host if request.client else None
@@ -267,7 +267,7 @@ async def readiness_check():
         )
 
 
-@app.post("/todos", response_model=Todo)
+@app.post("/api/v1/todos", response_model=Todo)
 async def create_todo(todo: TodoCreate, user_id: int = Depends(verify_token)):
     conn = get_db()
     cursor = conn.cursor()
@@ -293,7 +293,7 @@ async def create_todo(todo: TodoCreate, user_id: int = Depends(verify_token)):
         conn.close()
 
 
-@app.get("/todos", response_model=List[Todo])
+@app.get("/api/v1/todos", response_model=List[Todo])
 async def get_todos(user_id: int = Depends(verify_token)):
     conn = get_db()
     cursor = conn.cursor()
@@ -320,7 +320,7 @@ async def get_todos(user_id: int = Depends(verify_token)):
         conn.close()
 
 
-@app.get("/todos/{todo_id}", response_model=Todo)
+@app.get("/api/v1/todos/{todo_id}", response_model=Todo)
 async def get_todo(todo_id: int, user_id: int = Depends(verify_token)):
     conn = get_db()
     cursor = conn.cursor()
@@ -344,7 +344,7 @@ async def get_todo(todo_id: int, user_id: int = Depends(verify_token)):
         conn.close()
 
 
-@app.put("/todos/{todo_id}", response_model=Todo)
+@app.patch("/api/v1/todos/{todo_id}", response_model=Todo)
 async def update_todo(
     todo_id: int, todo_update: TodoUpdate, user_id: int = Depends(verify_token)
 ):
@@ -359,13 +359,7 @@ async def update_todo(
             raise HTTPException(status_code=404, detail=ERROR_TODO_NOT_FOUND)
 
         # Update fields
-        update_data = {}
-        if todo_update.title is not None:
-            update_data["title"] = todo_update.title
-        if todo_update.description is not None:
-            update_data["description"] = todo_update.description
-        if todo_update.completed is not None:
-            update_data["completed"] = todo_update.completed
+        update_data = todo_update.model_dump(exclude_unset=True)
 
         if update_data:
             set_clause = ", ".join([f"{key} = %s" for key in update_data.keys()])
@@ -393,7 +387,7 @@ async def update_todo(
         conn.close()
 
 
-@app.delete("/todos/{todo_id}")
+@app.delete("/api/v1/todos/{todo_id}")
 async def delete_todo(todo_id: int, user_id: int = Depends(verify_token)):
     conn = get_db()
     cursor = conn.cursor()
@@ -418,7 +412,7 @@ async def delete_todo(todo_id: int, user_id: int = Depends(verify_token)):
         conn.close()
 
 
-@app.get("/admin/todos", response_model=List[Todo])
+@app.get("/api/v1/admin/todos", response_model=List[Todo])
 async def get_all_todos(current_user_id: int = Depends(verify_token)):
     """Admin endpoint to get all todos (requires authentication)"""
     conn = get_db()

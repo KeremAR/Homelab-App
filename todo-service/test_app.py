@@ -94,7 +94,7 @@ class TestRuntimeConfig:
         )
 
         loaded_config = app_module.load_runtime_config()
-        response = client.get("/config")
+        response = client.get("/api/v1/config")
 
         assert loaded_config.version == 2
         assert response.status_code == 200
@@ -135,7 +135,7 @@ class TestTodoCreation:
 
         todo_data = {"title": "Test Todo", "description": "Test Description"}
 
-        response = client.post("/todos", json=todo_data, headers=auth_headers)
+        response = client.post("/api/v1/todos", json=todo_data, headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -147,14 +147,14 @@ class TestTodoCreation:
     def test_create_todo_unauthorized(self, client):
         todo_data = {"title": "Test Todo", "description": "Test Description"}
 
-        response = client.post("/todos", json=todo_data)
+        response = client.post("/api/v1/todos", json=todo_data)
 
         assert response.status_code == 401
 
     def test_create_todo_invalid_token(self, client, invalid_auth_headers):
         todo_data = {"title": "Test Todo", "description": "Test Description"}
 
-        response = client.post("/todos", json=todo_data, headers=invalid_auth_headers)
+        response = client.post("/api/v1/todos", json=todo_data, headers=invalid_auth_headers)
 
         assert response.status_code == 401
 
@@ -184,7 +184,7 @@ class TestTodoRetrieval:
         ]
         mock_db.cursor.fetchall.return_value = mock_todos
 
-        response = client.get("/todos", headers=auth_headers)
+        response = client.get("/api/v1/todos", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -206,7 +206,7 @@ class TestTodoRetrieval:
         }
         mock_db.cursor.fetchone.return_value = mock_todo
 
-        response = client.get("/todos/1", headers=auth_headers)
+        response = client.get("/api/v1/todos/1", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -219,7 +219,7 @@ class TestTodoRetrieval:
         mock_get_db.return_value = mock_db.conn
         mock_db.cursor.fetchone.return_value = None
 
-        response = client.get("/todos/999", headers=auth_headers)
+        response = client.get("/api/v1/todos/999", headers=auth_headers)
 
         assert response.status_code == 404
         assert "Todo not found" in response.json()["detail"]
@@ -258,7 +258,7 @@ class TestTodoUpdate:
 
         update_data = {"title": "New Title", "completed": True}
 
-        response = client.put("/todos/1", json=update_data, headers=auth_headers)
+        response = client.patch("/api/v1/todos/1", json=update_data, headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -273,7 +273,7 @@ class TestTodoUpdate:
 
         update_data = {"title": "New Title"}
 
-        response = client.put("/todos/999", json=update_data, headers=auth_headers)
+        response = client.patch("/api/v1/todos/999", json=update_data, headers=auth_headers)
 
         assert response.status_code == 404
 
@@ -285,7 +285,7 @@ class TestTodoDelete:
         mock_get_db.return_value = mock_db.conn
         mock_db.cursor.fetchone.return_value = {"id": 1}
 
-        response = client.delete("/todos/1", headers=auth_headers)
+        response = client.delete("/api/v1/todos/1", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -297,7 +297,7 @@ class TestTodoDelete:
         mock_get_db.return_value = mock_db.conn
         mock_db.cursor.fetchone.return_value = None
 
-        response = client.delete("/todos/999", headers=auth_headers)
+        response = client.delete("/api/v1/todos/999", headers=auth_headers)
 
         assert response.status_code == 404
 
@@ -327,7 +327,7 @@ class TestAdminEndpoints:
         ]
         mock_db.cursor.fetchall.return_value = mock_todos
 
-        response = client.get("/admin/todos", headers=auth_headers)
+        response = client.get("/api/v1/admin/todos", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -347,17 +347,17 @@ class TestTokenVerification:
         assert len(token) > 50  # Basic token structure check
 
     def test_verify_token_missing_header(self, client):
-        response = client.get("/todos")
+        response = client.get("/api/v1/todos")
         assert response.status_code == 401
 
     def test_verify_token_invalid_format(self, client):
         headers = {"Authorization": "InvalidFormat"}
-        response = client.get("/todos", headers=headers)
+        response = client.get("/api/v1/todos", headers=headers)
         assert response.status_code == 401
 
     def test_verify_token_invalid_token(self, client):
         headers = {"Authorization": "Bearer invalid_token"}
-        response = client.get("/todos", headers=headers)
+        response = client.get("/api/v1/todos", headers=headers)
         assert response.status_code == 401
 
 
