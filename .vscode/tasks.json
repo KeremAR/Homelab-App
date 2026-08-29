@@ -4,7 +4,7 @@
     {
       "label": "Dev: User service",
       "type": "shell",
-      "command": "uv run --locked uvicorn app:app --host 0.0.0.0 --port 8001 --reload",
+      "command": "uv run --locked uvicorn app:app --host 0.0.0.0 --port 8001 --reload --no-access-log",
       "options": {
         "cwd": "${workspaceFolder}/user-service",
         "env": {
@@ -23,7 +23,7 @@
     {
       "label": "Dev: Todo service",
       "type": "shell",
-      "command": "uv run --locked uvicorn app:app --host 0.0.0.0 --port 8002 --reload",
+      "command": "uv run --locked uvicorn app:app --host 0.0.0.0 --port 8002 --reload --no-access-log",
       "options": {
         "cwd": "${workspaceFolder}/todo-service",
         "env": {

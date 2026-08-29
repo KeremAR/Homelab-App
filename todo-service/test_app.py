@@ -76,7 +76,7 @@ class TestHealthCheck:
             data = response.json()
             assert data["detail"]["status"] == "not_ready"
             assert data["detail"]["database"] == "disconnected"
-            assert "Database connection failed" in data["detail"]["error"]
+            assert "error" not in data["detail"]
 
 
 class TestRuntimeConfig:

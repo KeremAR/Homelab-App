@@ -5,10 +5,9 @@ Vite frontend, and two local PostgreSQL databases. Source code remains in the
 Windows repository; development tools, dependencies, and databases run in
 Docker.
 
-> **Current dependency path:** the environment now uses uv and Ruff. The
-> pip/requirements/Black/Flake8 descriptions later in this document are kept as
-> a legacy implementation reference; the current behavior is defined in the
-> uv section below.
+> **Current dependency path:** the environment now uses uv and Ruff. The old
+> pip/Black/Flake8 notes below are compatibility history; the active behavior
+> is defined in the uv section.
 
 ## Quick Start
 
@@ -135,11 +134,11 @@ both `pyproject.toml` and `uv.lock`. After either file changes, rerun
 Dev Container rebuild is only needed when the tool image itself changes.
 
 The repository also retains `requirements.txt`, `requirements-test.txt`, the
-root Black `pyproject.toml`, `.flake8`, and each service's `Dockerfile.test` as
-a legacy pip/Black/Flake8 compatibility path. Those files are not consumed by
-the current Dev Container. Service `pyproject.toml` and `uv.lock` files remain
-the canonical dependency definition; compatibility requirements must be kept
-aligned whenever dependencies change.
+root legacy Black `pyproject.toml`, and `.flake8` as a compatibility path.
+There is no `Dockerfile.test`; those files are not consumed by the current Dev
+Container. Service `pyproject.toml` and `uv.lock` files remain the canonical
+dependency definition, and compatibility requirements must be kept aligned
+whenever dependencies change.
 
 Run explicit Compose lifecycle commands from the `App` directory:
 
@@ -395,7 +394,7 @@ postgresql://userservice:userpass@user-db:5432/userdb
 #### `Dockerfile`
 
 The workspace image starts from the Microsoft Python 3.11 Dev Container image
-and adds compiler tools, PostgreSQL client headers for `psycopg2`, and `psql`.
+and adds uv, Ruff, compiler tools, and the PostgreSQL client.
 It does not copy source or install repository dependencies. Source is mounted
 by Compose and dependencies are installed after creation.
 
@@ -405,10 +404,9 @@ Node.js is added by the Feature in `devcontainer.json`, not by the Dockerfile.
 
 This script runs automatically after a new container is created. It:
 
-1. creates `user-service/.venv` and `todo-service/.venv`;
-2. installs each service's `requirements-test.txt`;
-3. installs Black, Flake8, and Ruff;
-4. runs frontend `npm ci` from the lock file.
+1. runs `uv sync --project ... --locked` for each service;
+2. creates or updates each service's `.venv` from its `uv.lock`;
+3. installs frontend packages with `npm ci` from the lock file.
 
 The base image is not empty before this script. It already contains Linux,
 Python, Git, shell tools, PostgreSQL client tools, and the Node Feature.
@@ -424,7 +422,7 @@ The Tasks system exposes:
 | `Dev: Frontend` | Vite with HMR on `5173` |
 | `Dev: Start all` | Starts the three development tasks in parallel |
 | `Test: Python services` | Runs both Python test suites |
-| `Lint: All` | Runs Black, Flake8, and frontend ESLint |
+| `Lint: All` | Runs Ruff format/check and frontend ESLint |
 
 Task `env` entries apply only to the process started by that task. They do not
 install dependencies or permanently modify the container.

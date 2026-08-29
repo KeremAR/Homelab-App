@@ -1,12 +1,15 @@
+import logging
 import os
+from time import perf_counter
 from datetime import datetime, timedelta
 from typing import List
 
 import bcrypt
 import jwt
 import psycopg
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from logging_config import configure_logging, otel_resource_attributes
 
 # OpenTelemetry SDK and Instrumentation
 from opentelemetry import trace
@@ -20,12 +23,13 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from psycopg.rows import dict_row
 from pydantic import BaseModel, field_validator
 
+
+SERVICE_NAME = os.getenv("OTEL_SERVICE_NAME", "user-service")
+configure_logging(SERVICE_NAME)
+logger = logging.getLogger(__name__)
+
 # Configure OpenTelemetry SDK
-resource = Resource.create(
-    {
-        "service.name": os.getenv("OTEL_SERVICE_NAME", "user-service"),
-    }
-)
+resource = Resource.create(otel_resource_attributes(SERVICE_NAME))
 
 trace.set_tracer_provider(TracerProvider(resource=resource))
 otlp_exporter = OTLPSpanExporter()
@@ -37,6 +41,74 @@ PsycopgInstrumentor().instrument()
 
 
 app = FastAPI(title="User Service", version="1.0.0")
+
+
+def _request_route(request: Request) -> str:
+    route = request.scope.get("route")
+    return getattr(route, "path", request.url.path)
+
+
+def _audit_event(
+    event_name: str,
+    outcome: str,
+    *,
+    actor_id: int | None = None,
+    resource_type: str | None = None,
+    resource_id: int | None = None,
+) -> None:
+    fields = {
+        "event_name": event_name,
+        "outcome": outcome,
+    }
+    if actor_id is not None:
+        fields["actor_id"] = actor_id
+    if resource_type is not None:
+        fields["resource_type"] = resource_type
+    if resource_id is not None:
+        fields["resource_id"] = resource_id
+    logger.info("Audit event: %s", event_name, extra=fields)
+
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    started_at = perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception(
+            "Unhandled request failure",
+            extra={
+                "event_name": "http.request.failed",
+                "outcome": "failure",
+                "http_method": request.method,
+                "http_route": _request_route(request),
+                "duration_ms": round((perf_counter() - started_at) * 1000, 2),
+                "actor_id": getattr(request.state, "actor_id", None),
+            },
+        )
+        raise
+
+    # Health and metrics probes are high-volume infrastructure noise.
+    if request.url.path not in {"/health", "/ready", "/metrics"}:
+        status_code = response.status_code
+        level = logging.INFO if status_code < 400 else logging.WARNING
+        if status_code >= 500:
+            level = logging.ERROR
+        logger.log(
+            level,
+            "HTTP request completed",
+            extra={
+                "event_name": "http.request.completed",
+                "outcome": "success" if status_code < 400 else "failure",
+                "http_method": request.method,
+                "http_route": _request_route(request),
+                "http_status_code": status_code,
+                "duration_ms": round((perf_counter() - started_at) * 1000, 2),
+                "actor_id": getattr(request.state, "actor_id", None),
+            },
+        )
+    return response
+
 
 # Enable FastAPI auto-instrumentation
 FastAPIInstrumentor.instrument_app(app)
@@ -94,8 +166,11 @@ def get_db():  # pragma: no cover
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
         raise ValueError("DATABASE_URL environment variable is required")
-    conn = psycopg.connect(database_url, row_factory=dict_row)
-    return conn
+    try:
+        return psycopg.connect(database_url, row_factory=dict_row)
+    except Exception:
+        logger.exception("Database connection failed")
+        raise
 
 
 def init_db():  # pragma: no cover
@@ -142,19 +217,23 @@ def create_access_token(data: dict):
     return encoded_jwt
 
 
-async def verify_token(authorization: str = Header(None)):
+async def verify_token(request: Request, authorization: str = Header(None)):
     """Verify JWT token and return user_id"""
     scheme, separator, token = (authorization or "").partition(" ")
     if scheme.lower() != "bearer" or not separator or not token.strip():
+        _audit_event("auth.token_rejected", "failure", resource_type="auth")
         raise HTTPException(status_code=401, detail="Invalid authorization header")
 
     try:
         payload = jwt.decode(token.strip(), SECRET_KEY, algorithms=["HS256"])
         user_id = payload.get("user_id")
         if user_id is None:
+            _audit_event("auth.token_rejected", "failure", resource_type="auth")
             raise HTTPException(status_code=401, detail="Invalid token")
+        request.state.actor_id = user_id
         return user_id
     except jwt.InvalidTokenError:
+        _audit_event("auth.token_rejected", "failure", resource_type="auth")
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
@@ -163,8 +242,7 @@ async def startup_event():  # pragma: no cover
     try:
         init_db()
     except Exception:
-        # In test environment, database might not be available
-        pass
+        logger.exception("Database initialization failed")
 
 
 @app.get("/health")
@@ -197,6 +275,13 @@ async def register(user: UserCreate):
         )
         user_id = cursor.fetchone()["id"]
         conn.commit()
+        _audit_event(
+            "user.registered",
+            "success",
+            actor_id=user_id,
+            resource_type="user",
+            resource_id=user_id,
+        )
 
         return User(id=user_id, username=user.username, email=user.email)
     finally:
@@ -218,10 +303,18 @@ async def login(user_login: UserLogin):
         if not user or not verify_password(
             user_login.password, user["hashed_password"]
         ):
+            _audit_event("auth.login_failed", "failure", resource_type="auth")
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         access_token = create_access_token(
             data={"sub": user["username"], "user_id": user["id"]}
+        )
+        _audit_event(
+            "auth.login_succeeded",
+            "success",
+            actor_id=user["id"],
+            resource_type="user",
+            resource_id=user["id"],
         )
         return {"access_token": access_token, "token_type": "bearer"}
     finally:
@@ -276,6 +369,12 @@ async def get_all_users(current_user_id: int = Depends(verify_token)):
     try:
         cursor.execute("SELECT id, username, email FROM users ORDER BY id")
         users = cursor.fetchall()
+        _audit_event(
+            "admin.users_listed",
+            "success",
+            actor_id=current_user_id,
+            resource_type="user",
+        )
 
         return [
             User(id=user["id"], username=user["username"], email=user["email"])
@@ -309,6 +408,13 @@ async def create_admin(current_user_id: int = Depends(verify_token)):
         )
         user_id = cursor.fetchone()["id"]
         conn.commit()
+        _audit_event(
+            "admin.created",
+            "success",
+            actor_id=current_user_id,
+            resource_type="user",
+            resource_id=user_id,
+        )
 
         return {
             "message": "Admin user created",

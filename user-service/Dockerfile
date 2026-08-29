@@ -31,6 +31,7 @@ RUN apt-get update \
 
 COPY --from=builder /app/.venv /app/.venv
 COPY app.py .
+COPY logging_config.py .
 
 RUN useradd --create-home --shell /bin/bash app \
     && chown -R app:app /app
@@ -39,4 +40,4 @@ USER app
 
 EXPOSE 8001
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8001", "--no-access-log"]

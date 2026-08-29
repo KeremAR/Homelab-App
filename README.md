@@ -368,11 +368,10 @@ older workflow:
 
 | File | Compatibility purpose |
 | --- | --- |
-| `pyproject.toml` | Root Black formatting configuration |
-| `.flake8` | Flake8 lint configuration |
+| `pyproject.toml` | Root legacy Black configuration |
+| `.flake8` | Legacy Flake8 lint configuration |
 | `<service>/requirements.txt` | Current runtime dependencies in pip format |
 | `<service>/requirements-test.txt` | Runtime plus test dependencies for pip |
-| `<service>/Dockerfile.test` | Optional pip-based containerized test runner |
 
 The compatibility requirements use the current PyJWT, bcrypt, and psycopg3
 dependencies, so they still execute today's application code. They are not
@@ -381,11 +380,76 @@ used by the active Dev Container, production Dockerfiles, or Jenkins uv steps;
 dependency changes, update the matching pip compatibility files as part of the
 same commit to prevent the two supported installation paths from drifting.
 
-An optional legacy test image can be run with a service-local build context:
+The repository no longer carries a `Dockerfile.test`. The supported local and
+CI test path is uv with the service-local `pyproject.toml` and `uv.lock`.
 
-~~~bash
-docker build -f user-service/Dockerfile.test -t user-service-test user-service
-docker run --rm user-service-test
+## Application Logging And Telemetry
+
+Both FastAPI services write one compact JSON record per log event to stdout.
+They do not write log files. Kubernetes captures stdout in the container
+runtime format; Grafana Alloy removes that outer CRI/Docker envelope, parses
+the JSON, adds Kubernetes metadata, and forwards the record to Elasticsearch.
+`OTEL_LOGS_EXPORTER=none` remains intentional: application logs follow the
+stdout collection path, while OpenTelemetry continues to export traces.
+
+Each service owns a small `logging_config.py`. It configures the root,
+application, and Uvicorn error loggers, disables ordinary Uvicorn access-log
+lines, and keeps one request-completion event per request. The containers and
+development tasks therefore pass Uvicorn's `--no-access-log` option. This does
+not disable access control or application errors; it only removes Uvicorn's
+duplicate plain-text line because the application middleware already emits the
+structured JSON request event. Without it, one request would normally produce
+both a plain Uvicorn access line and the JSON `http.request.completed` record.
+
+Health, readiness, and metrics endpoints are intentionally quiet on successful
+requests. This avoids flooding pod logs with Kubernetes probes and Prometheus
+scrapes; it does not disable the endpoints. A failed readiness check still
+records the database exception on the server side, while Kubernetes exposes
+the probe result through Pod conditions and Events (`kubectl describe pod`),
+and the raw exception is not returned to the client. `/metrics` is a scrape
+response, not an application log record.
+
+The request event is emitted after the response:
+
+| Result | Severity | Event |
+| --- | --- | --- |
+| successful non-health request | `INFO` | `http.request.completed` |
+| expected 4xx response | `WARNING` | `http.request.completed` |
+| 5xx response or unexpected exception | `ERROR` | `http.request.completed` or `http.request.failed` |
+
+Authentication and administrative actions additionally emit audit events:
+
+| Event | Meaning |
+| --- | --- |
+| `user.registered` | A user was created |
+| `auth.login_succeeded` / `auth.login_failed` | Login outcome |
+| `auth.token_rejected` | A bearer token was missing or invalid |
+| `todo.created` / `todo.updated` / `todo.deleted` | Todo mutation; updates list only changed field names |
+| `admin.users_listed` / `admin.created` | Administrative operation |
+| `runtime_config.reloaded` / `runtime_config.reload_failed` | Runtime configuration reload outcome |
+
+Records include UTC RFC3339 timestamps, severity, logger, service identity,
+deployment environment, outcome, HTTP method/route/status/duration, actor ID
+when known, resource identifiers when applicable, exception details for
+server-side failures, and OpenTelemetry `trace_id`, `span_id`, and sampling
+state when a span is active. `OTEL_RESOURCE_ATTRIBUTES` supplies the service
+identity used by both traces and logs; Helm sets the service, namespace,
+actual image tag, environment, and cluster attributes.
+
+The formatter allow-lists fields and redacts token/password/secret values and
+email addresses. It never logs request bodies, JWTs, passwords, email
+addresses, or todo content. Alloy keeps low-cardinality fields such as
+`service_name`, `event_name`, and `outcome` as searchable labels, while trace,
+actor, resource, route, duration, changed-field, and exception values remain
+structured metadata rather than index labels.
+
+Useful Kibana queries include:
+
+~~~text
+service_name: "user-service" and event_name: "auth.login_failed"
+service_name: "todo-service" and event_name: "todo.updated"
+actor_id: 7 and event_name: "todo.deleted"
+trace_id: "<trace-id>"
 ~~~
 
 ## API Migration
