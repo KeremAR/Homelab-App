@@ -6,7 +6,9 @@ services:
     command: sleep infinity
     init: true
     environment:
-      PIP_CACHE_DIR: /home/vscode/.cache/pip
+      UV_CACHE_DIR: /home/vscode/.cache/uv
+      UV_LINK_MODE: copy
+      UV_PYTHON_DOWNLOADS: "0"
       NPM_CONFIG_CACHE: /home/vscode/.npm
       SECRET_KEY: dev-secret-key-change-before-production
       OTEL_SDK_DISABLED: "true"
@@ -15,7 +17,7 @@ services:
       - user-service-venv:/workspace/user-service/.venv
       - todo-service-venv:/workspace/todo-service/.venv
       - frontend-node-modules:/workspace/frontend/node_modules
-      - pip-cache:/home/vscode/.cache/pip
+      - uv-cache:/home/vscode/.cache/uv
       - npm-cache:/home/vscode/.npm
     depends_on:
       user-db:
@@ -63,7 +65,7 @@ volumes:
   user-service-venv:
   todo-service-venv:
   frontend-node-modules:
-  pip-cache:
+  uv-cache:
   npm-cache:
   user-db-data:
   todo-db-data:

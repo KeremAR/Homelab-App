@@ -31,14 +31,16 @@
     "vscode": {
       "extensions": [
         "dbaeumer.vscode-eslint",
-        "ms-python.black-formatter",
-        "ms-python.flake8",
+        "charliermarsh.ruff",
         "ms-python.python",
         "ms-python.vscode-pylance",
         "redhat.vscode-yaml"
       ],
       "settings": {
         "python.defaultInterpreterPath": "/workspace/user-service/.venv/bin/python",
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        },
         "eslint.workingDirectories": ["frontend"],
         "terminal.integrated.defaultProfile.linux": "zsh"
       }

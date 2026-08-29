@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+import jwt
 import pytest
 from app import (
     ALGORITHM,
@@ -10,7 +11,6 @@ from app import (
     verify_password,
 )
 from fastapi.testclient import TestClient
-from jose import jwt
 
 
 @pytest.fixture
@@ -52,6 +52,18 @@ class TestHealthCheck:
 
 
 class TestUserRegistration:
+    def test_register_rejects_password_over_bcrypt_limit(self, client):
+        response = client.post(
+            "/api/v1/auth/register",
+            json={
+                "username": "testuser",
+                "email": "test@example.com",
+                "password": "x" * 73,
+            },
+        )
+
+        assert response.status_code == 422
+
     @patch("app.get_db")
     def test_register_new_user_success(self, mock_get_db, client, mock_db):
         # Setup mock
@@ -272,6 +284,12 @@ class TestPasswordUtilities:
         # Verification should work
         assert verify_password(password, hashed) is True
         assert verify_password("wrongpass", hashed) is False
+
+    def test_direct_bcrypt_verifies_existing_passlib_hash(self):
+        existing_hash = "$2b$12$m5R9yH6uhI.sF7oHQMXp7uwCnUnDAnO29WhLjBMB7x9Xz9DUC9zWW"
+
+        assert verify_password("legacy-password", existing_hash) is True
+        assert verify_password("wrong-password", existing_hash) is False
 
     def test_jwt_token_creation(self):
         test_data = {"sub": "testuser", "user_id": 1}

@@ -5,23 +5,23 @@ from pathlib import Path
 from threading import Lock
 from typing import List, Optional
 
-import psycopg2
-import psycopg2.extras  # Import extras explicitly for RealDictCursor
+import jwt
+import psycopg
 
 # httpx removed - not used
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from jose import JWTError, jwt
 
 # OpenTelemetry SDK and Instrumentation
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
+from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from prometheus_fastapi_instrumentator import Instrumentator, metrics
+from psycopg.rows import dict_row
 from pydantic import (
     BaseModel,
     Field,
@@ -44,8 +44,8 @@ span_processor = BatchSpanProcessor(otlp_exporter)
 trace.get_tracer_provider().add_span_processor(span_processor)
 
 
-# Enable psycopg2 instrumentation BEFORE any db connections
-Psycopg2Instrumentor().instrument()
+# Enable Psycopg instrumentation before any database connections.
+PsycopgInstrumentor().instrument()
 
 app = FastAPI(title="Todo Service", version="1.0.0")
 
@@ -170,7 +170,7 @@ def get_db():  # pragma: no cover
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
         raise ValueError("DATABASE_URL environment variable is required")
-    conn = psycopg2.connect(database_url, cursor_factory=psycopg2.extras.RealDictCursor)
+    conn = psycopg.connect(database_url, row_factory=dict_row)
     return conn
 
 
@@ -201,12 +201,12 @@ async def verify_token(authorization: str = Header(None)):
         raise HTTPException(status_code=401, detail="Invalid authorization header")
 
     try:
-        payload = jwt.decode(token.strip(), SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token.strip(), SECRET_KEY, algorithms=["HS256"])
         user_id = payload.get("user_id")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
         return user_id
-    except JWTError:
+    except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 

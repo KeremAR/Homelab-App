@@ -4,7 +4,7 @@
     {
       "label": "Dev: User service",
       "type": "shell",
-      "command": ".venv/bin/uvicorn app:app --host 0.0.0.0 --port 8001 --reload",
+      "command": "uv run --locked uvicorn app:app --host 0.0.0.0 --port 8001 --reload",
       "options": {
         "cwd": "${workspaceFolder}/user-service",
         "env": {
@@ -23,7 +23,7 @@
     {
       "label": "Dev: Todo service",
       "type": "shell",
-      "command": ".venv/bin/uvicorn app:app --host 0.0.0.0 --port 8002 --reload",
+      "command": "uv run --locked uvicorn app:app --host 0.0.0.0 --port 8002 --reload",
       "options": {
         "cwd": "${workspaceFolder}/todo-service",
         "env": {
@@ -67,7 +67,7 @@
     {
       "label": "Test: Python services",
       "type": "shell",
-      "command": "user-service/.venv/bin/pytest user-service && todo-service/.venv/bin/pytest todo-service",
+      "command": "uv run --project user-service --locked pytest user-service && uv run --project todo-service --locked pytest todo-service",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -77,7 +77,7 @@
     {
       "label": "Lint: All",
       "type": "shell",
-      "command": "user-service/.venv/bin/black --check --diff user-service todo-service && user-service/.venv/bin/flake8 user-service todo-service && npm --prefix frontend run lint",
+      "command": "ruff format --check --diff user-service todo-service && ruff check user-service todo-service && npm --prefix frontend run lint",
       "options": {
         "cwd": "${workspaceFolder}"
       },

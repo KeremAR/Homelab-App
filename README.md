@@ -326,6 +326,68 @@ npm --prefix frontend test
 npm --prefix frontend run build
 ~~~
 
+### Current Python Dependency Workflow
+
+Each backend is an independent uv project with its own `pyproject.toml` and
+`uv.lock`. This matches the separate Docker build contexts and allows either
+service to move to its own repository later without splitting a root lockfile.
+
+Preferred commands are:
+
+~~~bash
+uv sync --project user-service --locked
+uv sync --project todo-service --locked
+uv run --project user-service --locked pytest user-service
+uv run --project todo-service --locked pytest todo-service
+ruff format --check --diff user-service todo-service
+ruff check user-service todo-service
+~~~
+
+Production Docker builds use `uv sync --locked --no-dev`. CI creates a fresh
+service `.venv` for every workspace and persists only uv's download/build
+cache. Trivy reads each standard `uv.lock` directly.
+
+The Python library migrations are:
+
+| Previous | Current |
+| --- | --- |
+| pip + manually created venv | uv project sync and lockfiles |
+| Black + Flake8 | Ruff formatter + linter |
+| python-jose | PyJWT with an explicit `HS256` decode allow-list |
+| Passlib CryptContext | direct bcrypt hashing and verification |
+| psycopg2 + RealDictCursor | psycopg3 + `dict_row` |
+
+A fixed hash generated before the Passlib removal is covered by tests to prove
+that existing standard bcrypt hashes still verify.
+
+### Legacy pip And Lint Compatibility
+
+The uv/Ruff path above is the active development and CI implementation. The
+previous pip, Black, and Flake8 inputs remain available for users that need the
+older workflow:
+
+| File | Compatibility purpose |
+| --- | --- |
+| `pyproject.toml` | Root Black formatting configuration |
+| `.flake8` | Flake8 lint configuration |
+| `<service>/requirements.txt` | Current runtime dependencies in pip format |
+| `<service>/requirements-test.txt` | Runtime plus test dependencies for pip |
+| `<service>/Dockerfile.test` | Optional pip-based containerized test runner |
+
+The compatibility requirements use the current PyJWT, bcrypt, and psycopg3
+dependencies, so they still execute today's application code. They are not
+used by the active Dev Container, production Dockerfiles, or Jenkins uv steps;
+`pyproject.toml` and `uv.lock` inside each service remain canonical. When a
+dependency changes, update the matching pip compatibility files as part of the
+same commit to prevent the two supported installation paths from drifting.
+
+An optional legacy test image can be run with a service-local build context:
+
+~~~bash
+docker build -f user-service/Dockerfile.test -t user-service-test user-service
+docker run --rm user-service-test
+~~~
+
 ## API Migration
 
 The API was moved under an explicit versioned namespace and todo updates were

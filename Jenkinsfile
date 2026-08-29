@@ -19,14 +19,12 @@ def unitTestServices = [
     [
         name: 'user-service',
         target: 'user-service',
-        requirementsFile: 'user-service/requirements-test.txt',
         testPath: '.',
         coverageThreshold: 70
     ],
     [
         name: 'todo-service',
         target: 'todo-service',
-        requirementsFile: 'todo-service/requirements-test.txt',
         testPath: '.',
         coverageThreshold: 70
     ]
@@ -36,9 +34,7 @@ def securityConfig = [
     trivyFsSkipDirs: [
         'frontend/node_modules',
         'node_modules',
-        '.venvs',
         '.venv',
-        'venv',
         '__pycache__',
         '.git',
         'coverage-reports'
@@ -106,7 +102,7 @@ def imageBuildConfig = [
 pipeline {
     agent {
         kubernetes {
-            yaml ciLintPodTemplate(images: imageBuildConfig.images)
+            yaml ciPodTemplate(images: imageBuildConfig.images)
             defaultContainer 'jnlp'
         }
     }
@@ -134,7 +130,7 @@ pipeline {
             parallel {
                 stage('Python') {
                     steps {
-                        runPythonLinting(
+                        runRuffLinting(
                             targets: lintConfig.pythonTargets,
                             failFast: false
                         )
@@ -164,7 +160,7 @@ pipeline {
 
         stage('Unit Tests') {
             steps {
-                runUnitTest(
+                runUvUnitTest(
                     services: unitTestServices,
                     coverageDir: 'coverage-reports',
                     failFast: false
@@ -216,7 +212,6 @@ pipeline {
                         runTrivyFSScan(
                             target: '.',
                             skipDirs: securityConfig.trivyFsSkipDirs,
-                            filePatterns: ['pip:requirements-.*\\.txt'],
                             includeDevDeps: true,
                             failOnVulnerabilities: true
                         )

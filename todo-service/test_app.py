@@ -2,10 +2,10 @@ import json
 from unittest.mock import MagicMock, patch
 
 import app as app_module
+import jwt
 import pytest
 from app import ALGORITHM, SECRET_KEY, app
 from fastapi.testclient import TestClient
-from jose import jwt
 from pydantic import ValidationError
 
 
@@ -154,7 +154,9 @@ class TestTodoCreation:
     def test_create_todo_invalid_token(self, client, invalid_auth_headers):
         todo_data = {"title": "Test Todo", "description": "Test Description"}
 
-        response = client.post("/api/v1/todos", json=todo_data, headers=invalid_auth_headers)
+        response = client.post(
+            "/api/v1/todos", json=todo_data, headers=invalid_auth_headers
+        )
 
         assert response.status_code == 401
 
@@ -268,7 +270,9 @@ class TestTodoUpdate:
 
         update_data = {"title": "New Title", "completed": True}
 
-        response = client.patch("/api/v1/todos/1", json=update_data, headers=auth_headers)
+        response = client.patch(
+            "/api/v1/todos/1", json=update_data, headers=auth_headers
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -283,7 +287,9 @@ class TestTodoUpdate:
 
         update_data = {"title": "New Title"}
 
-        response = client.patch("/api/v1/todos/999", json=update_data, headers=auth_headers)
+        response = client.patch(
+            "/api/v1/todos/999", json=update_data, headers=auth_headers
+        )
 
         assert response.status_code == 404
 

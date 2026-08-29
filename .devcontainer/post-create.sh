@@ -3,11 +3,6 @@
 set -euo pipefail
 
 readonly WORKSPACE_DIR="/workspace"
-readonly PYTHON_LINT_PACKAGES=(
-  "black==25.9.0"
-  "flake8==7.3.0"
-  "ruff==0.9.3"
-)
 
 prepare_python_service() {
   local service_name="$1"
@@ -15,15 +10,11 @@ prepare_python_service() {
   local venv_dir="${service_dir}/.venv"
 
   sudo chown -R vscode:vscode "$venv_dir"
-  python -m venv "$venv_dir"
-  "$venv_dir/bin/python" -m pip install --upgrade pip setuptools wheel
-  "$venv_dir/bin/python" -m pip install \
-    "${PYTHON_LINT_PACKAGES[@]}" \
-    -r "${service_dir}/requirements-test.txt"
+  uv sync --project "$service_dir" --locked
 }
 
 sudo chown -R vscode:vscode \
-  /home/vscode/.cache/pip \
+  /home/vscode/.cache/uv \
   /home/vscode/.npm \
   "${WORKSPACE_DIR}/frontend/node_modules"
 

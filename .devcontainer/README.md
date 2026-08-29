@@ -5,6 +5,11 @@ Vite frontend, and two local PostgreSQL databases. Source code remains in the
 Windows repository; development tools, dependencies, and databases run in
 Docker.
 
+> **Current dependency path:** the environment now uses uv and Ruff. The
+> pip/requirements/Black/Flake8 descriptions later in this document are kept as
+> a legacy implementation reference; the current behavior is defined in the
+> uv section below.
+
 ## Quick Start
 
 ### First Creation
@@ -71,6 +76,70 @@ The image and dependencies are reused.
 | Stop the complete environment | **Dev Containers: Reopen Folder Locally**, close the attached window, or use the `stop` command below |
 | Remove containers and network but retain data | Use the `down` command below |
 | Full reset, including dependencies and databases | Use `down --volumes` below |
+
+## Current uv And Ruff Workflow
+
+Both backends are independent uv projects:
+
+```text
+user-service/pyproject.toml + user-service/uv.lock
+todo-service/pyproject.toml + todo-service/uv.lock
+```
+
+`Reopen in Container` builds `.devcontainer/Dockerfile`, which installs uv
+0.12.1, Ruff 0.16.0, and the PostgreSQL CLI. The post-create script then runs
+`uv sync --locked` once for each service. uv creates the service-local `.venv`;
+developers do not run `python -m venv` or `pip install` manually.
+
+Current storage:
+
+| Data | Storage | Purpose |
+| --- | --- | --- |
+| `user-service/.venv` | Named volume | Installed User Service environment |
+| `todo-service/.venv` | Named volume | Installed Todo Service environment |
+| `/home/vscode/.cache/uv` | Named volume | Shared uv downloads/build cache |
+| `frontend/node_modules` | Named volume | Frontend dependencies |
+| PostgreSQL data | Two named volumes | Independent service databases |
+
+The `.venv` volumes make daily startup fast; the uv cache avoids downloading
+the same distributions when an environment must be recreated. They solve
+different problems and neither is stored in Git.
+
+Current commands inside the workspace container:
+
+```bash
+uv run --project user-service --locked pytest user-service
+uv run --project todo-service --locked pytest todo-service
+ruff format --check --diff user-service todo-service
+ruff check user-service todo-service
+npm --prefix frontend run lint
+```
+
+The VS Code tasks use the same commands. `Dev: User service` and `Dev: Todo
+service` run `uv run --locked uvicorn ...` from their respective project
+directories. The frontend remains `npm run dev` with Vite HMR.
+
+Dependency changes are made per service:
+
+```bash
+cd user-service
+uv add <package>
+uv add --dev <test-package>
+uv lock
+uv sync --locked
+```
+
+Repeat in `todo-service` only when that service needs the dependency. Commit
+both `pyproject.toml` and `uv.lock`. After either file changes, rerun
+`.devcontainer/post-create.sh` or `uv sync --project <service> --locked`; a full
+Dev Container rebuild is only needed when the tool image itself changes.
+
+The repository also retains `requirements.txt`, `requirements-test.txt`, the
+root Black `pyproject.toml`, `.flake8`, and each service's `Dockerfile.test` as
+a legacy pip/Black/Flake8 compatibility path. Those files are not consumed by
+the current Dev Container. Service `pyproject.toml` and `uv.lock` files remain
+the canonical dependency definition; compatibility requirements must be kept
+aligned whenever dependencies change.
 
 Run explicit Compose lifecycle commands from the `App` directory:
 
