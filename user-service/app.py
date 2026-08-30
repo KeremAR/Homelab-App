@@ -1,5 +1,6 @@
 import logging
 import os
+from contextlib import asynccontextmanager
 from time import perf_counter
 from datetime import datetime, timedelta
 from typing import List
@@ -46,7 +47,16 @@ if os.getenv("OTEL_TRACES_EXPORTER", "otlp").lower() == "otlp":
 PsycopgInstrumentor().instrument()
 
 
-app = FastAPI(title="User Service", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        init_db()
+    except Exception:
+        logger.exception("Database initialization failed")
+    yield
+
+
+app = FastAPI(title="User Service", version="1.0.0", lifespan=lifespan)
 
 
 def _request_route(request: Request) -> str:
@@ -251,14 +261,6 @@ async def verify_token(request: Request, authorization: str = Header(None)):
     except jwt.InvalidTokenError:
         _audit_event("auth.token_rejected", "failure", resource_type="auth")
         raise HTTPException(status_code=401, detail="Invalid token")
-
-
-@app.on_event("startup")
-async def startup_event():  # pragma: no cover
-    try:
-        init_db()
-    except Exception:
-        logger.exception("Database initialization failed")
 
 
 @app.get("/health")

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 from time import perf_counter
 from threading import Lock
@@ -53,7 +54,34 @@ if os.getenv("OTEL_TRACES_EXPORTER", "otlp").lower() == "otlp":
 # Enable Psycopg instrumentation before any database connections.
 PsycopgInstrumentor().instrument()
 
-app = FastAPI(title="Todo Service", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if RUNTIME_CONFIG_PATH.is_file():
+        try:
+            loaded_config = load_runtime_config()
+            _audit_event(
+                "runtime_config.reloaded",
+                "success",
+                resource_type="runtime_config",
+                resource_id=str(loaded_config.version),
+            )
+        except (OSError, ValidationError, json.JSONDecodeError):
+            logger.exception("Runtime config could not be loaded; keeping old config")
+            _audit_event(
+                "runtime_config.reload_failed",
+                "failure",
+                resource_type="runtime_config",
+            )
+
+    try:
+        init_db()
+    except Exception:
+        logger.exception("Database initialization failed")
+    yield
+
+
+app = FastAPI(title="Todo Service", version="1.0.0", lifespan=lifespan)
 
 
 def _request_route(request: Request) -> str:
@@ -282,31 +310,6 @@ async def verify_token(request: Request, authorization: str = Header(None)):
     except jwt.InvalidTokenError:
         _audit_event("auth.token_rejected", "failure", resource_type="auth")
         raise HTTPException(status_code=401, detail="Invalid token")
-
-
-@app.on_event("startup")
-async def startup_event():  # pragma: no cover
-    if RUNTIME_CONFIG_PATH.is_file():
-        try:
-            loaded_config = load_runtime_config()
-            _audit_event(
-                "runtime_config.reloaded",
-                "success",
-                resource_type="runtime_config",
-                resource_id=str(loaded_config.version),
-            )
-        except (OSError, ValidationError, json.JSONDecodeError):
-            logger.exception("Runtime config could not be loaded; keeping old config")
-            _audit_event(
-                "runtime_config.reload_failed",
-                "failure",
-                resource_type="runtime_config",
-            )
-
-    try:
-        init_db()
-    except Exception:
-        logger.exception("Database initialization failed")
 
 
 @app.get("/health")
