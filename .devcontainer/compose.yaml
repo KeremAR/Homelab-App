@@ -8,7 +8,7 @@ services:
     environment:
       UV_CACHE_DIR: /home/vscode/.cache/uv
       UV_LINK_MODE: copy
-      UV_PYTHON_DOWNLOADS: "0"
+      UV_PYTHON_DOWNLOADS: "0" 
       NPM_CONFIG_CACHE: /home/vscode/.npm
       SECRET_KEY: dev-secret-key-change-before-production
       OTEL_SDK_DISABLED: "false"

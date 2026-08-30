@@ -40,8 +40,10 @@ logger = logging.getLogger(__name__)
 resource = Resource.create(otel_resource_attributes(SERVICE_NAME))
 trace.set_tracer_provider(TracerProvider(resource=resource))
 if os.getenv("OTEL_TRACES_EXPORTER", "otlp").lower() == "otlp":
-    otel_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-    if otel_endpoint:
+    otel_trace_endpoint = os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") or os.getenv(
+        "OTEL_EXPORTER_OTLP_ENDPOINT"
+    )
+    if otel_trace_endpoint:
         # Let the exporter resolve the protocol-specific path from the endpoint.
         otlp_exporter = OTLPSpanExporter()
         span_processor = BatchSpanProcessor(otlp_exporter)
@@ -130,10 +132,12 @@ async def request_logging_middleware(request: Request, call_next):
     return response
 
 
+OTEL_EXCLUDED_URLS = r"/health$,/ready$,/metrics$"
+
 # Keep health, readiness, and scrape traffic out of application traces.
 FastAPIInstrumentor.instrument_app(
     app,
-    excluded_urls=r"^/health$,^/ready$,^/metrics$",
+    excluded_urls=OTEL_EXCLUDED_URLS,
 )
 
 

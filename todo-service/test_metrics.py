@@ -1,10 +1,17 @@
 from types import SimpleNamespace
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from opentelemetry import context, trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+    InMemorySpanExporter,
+)
 from starlette.requests import Request
 
-from app import app
+from app import OTEL_EXCLUDED_URLS, app
 from metrics import REQUEST_COUNT, REQUEST_DURATION, observe_request
 
 
@@ -136,6 +143,53 @@ def test_probe_paths_do_not_enter_application_metrics():
         observe_request(make_request(path, path), 200, 0.1)
         assert len(request_count_samples(path)) == count_before
         assert len(duration_samples(path)) == duration_before
+
+
+def test_failed_probe_is_recorded_in_application_metrics():
+    path = "/ready"
+    observe_request(make_request(path, path), 503, 0.1)
+
+    assert any(
+        sample.name == "http_requests_total"
+        and sample.labels["status"] == "503"
+        and sample.value >= 1
+        for sample in request_count_samples(path, method="GET")
+    )
+    assert any(
+        sample.name == "http_request_duration_seconds_count"
+        and sample.labels["status"] == "503"
+        and sample.value >= 1
+        for sample in duration_samples(path, method="GET")
+    )
+
+
+def test_fastapi_excludes_probe_urls_but_traces_application_urls():
+    test_app = FastAPI()
+
+    @test_app.get("/health")
+    async def health():
+        return {"status": "ok"}
+
+    @test_app.get("/api/test")
+    async def application_endpoint():
+        return {"status": "ok"}
+
+    exporter = InMemorySpanExporter()
+    tracer_provider = TracerProvider()
+    tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
+    FastAPIInstrumentor.instrument_app(
+        test_app,
+        tracer_provider=tracer_provider,
+        excluded_urls=OTEL_EXCLUDED_URLS,
+    )
+
+    client = TestClient(test_app)
+    assert client.get("/health").status_code == 200
+    assert client.get("/api/test").status_code == 200
+
+    span_names = [span.name for span in exporter.get_finished_spans()]
+    assert not any("/health" in name for name in span_names)
+    assert any("/api/test" in name for name in span_names)
 
 
 def test_metrics_endpoint_uses_openmetrics_and_is_declared_once():

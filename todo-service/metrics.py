@@ -71,7 +71,7 @@ def observe_request(
     request: Request, status_code: int, duration_seconds: float
 ) -> None:
     """Record an application request and attach its active trace as an exemplar."""
-    if request.url.path in PROBE_PATHS:
+    if request.url.path in PROBE_PATHS and status_code < 400:
         return
 
     labels = {
