@@ -580,4 +580,4 @@ async def get_all_todos(current_user_id: int = Depends(verify_token)):
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8002)
+    uvicorn.run(app, host="0.0.0.0", port=8002, access_log=False)
