@@ -448,4 +448,4 @@ async def create_admin(current_user_id: int = Depends(verify_token)):
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8001, access_log=False)
